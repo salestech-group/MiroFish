@@ -20,7 +20,7 @@
 [![X](https://img.shields.io/badge/X-Follow-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/mirofish_ai)
 [![Instagram](https://img.shields.io/badge/Instagram-Follow-E4405F?style=flat-square&logo=instagram&logoColor=white)](https://www.instagram.com/mirofish_ai/)
 
-[English](./README.md) | [中文文档](./README-ZH.md)
+[English](./README-EN.md) | [中文文档](./README.md)
 
 </div>
 
@@ -97,37 +97,29 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 
 #### Prerequisites
 
-<<<<<<< HEAD
 | Tool | Version | Description | Check Installation |
 |------|---------|-------------|-------------------|
 | **Node.js** | 18+ | Frontend runtime, includes npm | `node -v` |
 | **Python** | ≥3.11, ≤3.12 | Backend runtime | `python --version` |
 | **uv** | Latest | Python package manager | `uv --version` |
-=======
-| 工具 | 版本要求 | 说明 | 安装检查 |
-|------|---------|------|---------|
-| **Node.js** | 18+ | 前端运行环境，包含 npm | `node -v` |
-| **Python** | ≥3.11, ≤3.12 | 后端运行环境 | `python --version` |
-| **uv** | 最新版 | Python 包管理器 | `uv --version` |
-| **Neo4j** | 5.x Community | 本地知识图谱数据库 | `neo4j --version` |
+| **Neo4j** | 5.x Community | Local knowledge graph database | `neo4j --version` |
 
-**安装 Neo4j（选择适合你的方式）：**
+**Install Neo4j (choose one):**
 
 ```bash
 # macOS
 brew install neo4j
 
 # Linux (Debian/Ubuntu)
-# 参考官方文档：https://neo4j.com/docs/operations-manual/current/installation/linux/
+# See official docs: https://neo4j.com/docs/operations-manual/current/installation/linux/
 
-# Windows / 所有平台
-# 下载 Desktop 版本：https://neo4j.com/download/
+# Windows / All platforms
+# Download Neo4j Desktop: https://neo4j.com/download/
 
-# 首次启动前设置密码，然后启动服务
+# Set password before first start, then launch
 neo4j-admin dbms set-initial-password your_neo4j_password
 neo4j start
 ```
->>>>>>> abhiyadav2345/feat/graphiti-neo4j-migration
 
 #### 1. Configure Environment Variables
 
@@ -148,29 +140,18 @@ LLM_API_KEY=your_api_key
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_MODEL_NAME=qwen-plus
 
-<<<<<<< HEAD
-# Zep Cloud Configuration
-# Free monthly quota is sufficient for simple usage: https://app.getzep.com/
-ZEP_API_KEY=your_zep_api_key
-```
-
-#### 2. Install Dependencies
-=======
-# 知识图谱配置（本地 Neo4j + Graphiti，免费无限制）
-# 安装 Neo4j Community Edition：https://neo4j.com/download/
-# macOS 用户：brew install neo4j && neo4j start
+# Knowledge Graph — local Neo4j + Graphiti (free, no rate limits)
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_neo4j_password
 
-# Embedding 模型（使用 Gemini API 时取消注释）
+# Embedding model (uncomment if using Gemini API)
 # EMBEDDING_MODEL=gemini-embedding-001
 ```
 
-> **注意：** MiroFish 已从 Zep Cloud 迁移至本地 **Graphiti + Neo4j**，无需注册任何第三方服务，完全免费且无速率限制。
+> **Note:** MiroFish has migrated from Zep Cloud to local **Graphiti + Neo4j**. No third-party account required — completely free with no rate limits.
 
-#### 2. 安装依赖
->>>>>>> abhiyadav2345/feat/graphiti-neo4j-migration
+#### 2. Install Dependencies
 
 ```bash
 # One-click installation of all dependencies (root + frontend + backend)

@@ -7,7 +7,7 @@ import time
 from typing import Dict, Any, List, Optional, Set, Callable, TypeVar
 from dataclasses import dataclass, field
 
-from zep_cloud.client import Zep
+from .graphiti_adapter import GraphitiAdapter
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -79,11 +79,7 @@ class ZepEntityReader:
     """
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or Config.ZEP_API_KEY
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
-        
-        self.client = Zep(api_key=self.api_key)
+        self.client = GraphitiAdapter()
     
     def _call_with_retry(
         self, 
@@ -234,27 +230,51 @@ class ZepEntityReader:
             FilteredEntities: 过滤后的实体集合
         """
         logger.info(f"开始筛选图谱 {graph_id} 的实体...")
-        
+
+        # Look up ontology from project to classify entities
+        ontology = None
+        try:
+            from ..models.project import ProjectManager
+            from .graph_builder import _classify_entity_type
+            for p in ProjectManager.list_projects():
+                if p.graph_id == graph_id and p.ontology:
+                    ontology = p.ontology
+                    break
+        except Exception:
+            pass
+
         # 获取所有节点
         all_nodes = self.get_all_nodes(graph_id)
         total_count = len(all_nodes)
-        
+
+        # Apply ontology-based classification so all nodes get proper type labels
+        if ontology:
+            for node in all_nodes:
+                labels = node.get("labels", [])
+                custom = [l for l in labels if l not in ("Entity", "Node")]
+                if not custom:
+                    entity_type = _classify_entity_type(
+                        node.get("name", ""), node.get("summary", ""), ontology
+                    )
+                    if entity_type != "Entity":
+                        node["labels"] = [entity_type] + labels
+
         # 获取所有边（用于后续关联查找）
         all_edges = self.get_all_edges(graph_id) if enrich_with_edges else []
-        
+
         # 构建节点UUID到节点数据的映射
         node_map = {n["uuid"]: n for n in all_nodes}
-        
+
         # 筛选符合条件的实体
         filtered_entities = []
         entity_types_found = set()
-        
+
         for node in all_nodes:
             labels = node.get("labels", [])
-            
+
             # 筛选逻辑：Labels必须包含除"Entity"和"Node"之外的标签
             custom_labels = [l for l in labels if l not in ["Entity", "Node"]]
-            
+
             if not custom_labels:
                 # 只有默认标签，跳过
                 continue

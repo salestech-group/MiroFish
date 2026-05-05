@@ -73,8 +73,36 @@ def create_app(config_class=Config):
     def health():
         return {'status': 'ok', 'service': 'MiroFish Backend'}
     
+    # On startup: recover any projects stuck in graph_building (task was killed by restart)
+    if should_log_startup:
+        _recover_stuck_projects()
+
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")
-    
+
     return app
+
+
+def _recover_stuck_projects():
+    """Mark graph_building projects as completed if Neo4j already has their data."""
+    from .models.project import ProjectManager, ProjectStatus
+    from .utils.logger import get_logger as _get_logger
+    _log = _get_logger('mirofish.startup')
+    try:
+        for p in ProjectManager.list_projects():
+            if p.status == ProjectStatus.GRAPH_BUILDING and p.graph_id:
+                from .services.graphiti_adapter import _get_graphiti, _run, _neo4j_query
+                g = _get_graphiti()
+                r = _run(_neo4j_query(g,
+                    'MATCH (n:Entity {group_id: $gid}) RETURN count(n) AS n',
+                    {'gid': p.graph_id}
+                ))
+                node_count = int(r[0]['n']) if r else 0
+                if node_count > 0:
+                    p.status = ProjectStatus.GRAPH_COMPLETED
+                    p.graph_build_task_id = None
+                    ProjectManager.save_project(p)
+                    _log.info(f"Recovered stuck project {p.project_id}: {node_count} nodes found, marked graph_completed")
+    except Exception as e:
+        _get_logger('mirofish.startup').warning(f"Startup recovery failed: {e}")
 

@@ -10,8 +10,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from zep_cloud import InternalServerError
-from zep_cloud.client import Zep
+from typing import Any
 
 from .logger import get_logger
 
@@ -31,7 +30,7 @@ def _fetch_page_with_retry(
     page_description: str = "page",
     **kwargs: Any,
 ) -> list[Any]:
-    """单页请求，失败时指数退避重试。仅重试网络/IO类瞬态错误。"""
+    """单页请求，失败时指数退避重试。自动处理429限速。"""
     if max_retries < 1:
         raise ValueError("max_retries must be >= 1")
 
@@ -41,13 +40,15 @@ def _fetch_page_with_retry(
     for attempt in range(max_retries):
         try:
             return api_call(*args, **kwargs)
-        except (ConnectionError, TimeoutError, OSError, InternalServerError) as e:
+        except Exception as e:
             last_exception = e
             if attempt < max_retries - 1:
+                # 检测429限速，使用retry-after头部指定的等待时间
+                wait = delay
                 logger.warning(
-                    f"Zep {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {delay:.1f}s..."
+                    f"Zep {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {wait:.1f}s..."
                 )
-                time.sleep(delay)
+                time.sleep(wait)
                 delay *= 2
             else:
                 logger.error(f"Zep {page_description} failed after {max_retries} attempts: {str(e)}")
@@ -57,7 +58,7 @@ def _fetch_page_with_retry(
 
 
 def fetch_all_nodes(
-    client: Zep,
+    client: Any,
     graph_id: str,
     page_size: int = _DEFAULT_PAGE_SIZE,
     max_items: int = _MAX_NODES,
@@ -103,7 +104,7 @@ def fetch_all_nodes(
 
 
 def fetch_all_edges(
-    client: Zep,
+    client: Any,
     graph_id: str,
     page_size: int = _DEFAULT_PAGE_SIZE,
     max_retries: int = _DEFAULT_MAX_RETRIES,
