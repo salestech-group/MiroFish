@@ -5,7 +5,24 @@
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(cat:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm install:*)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git restore:*)",
+      "Bash(uv run:*)",
+      "Bash(uv sync:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker-compose:*)"
     ],
     "deny": [
       "Read(*/.env*)",
@@ -14,10 +31,39 @@
       "Write(*/secrets/*)",
       "Edit(*/.env*)",
       "Edit(*/secrets/*)",
+      "Read(*/uploads/*)",
+      "Write(*/uploads/*)",
+      "Edit(*/uploads/*)",
+      "Read(*/.codegraph/*)",
+      "Write(*/.codegraph/*)",
+      "Edit(*/.codegraph/*)",
       "Bash(rm -f*)",
       "Bash(rm -rf*)",
       "Bash(git push -f*)",
       "Bash(git push --force*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session_start.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Write|Edit|Bash|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool_env_guard.sh"
+          }
+        ]
+      }
     ]
   }
 }
