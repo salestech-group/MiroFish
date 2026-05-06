@@ -49,6 +49,11 @@ htmlcov/
 .claude/.credentials.json
 .codegraph/
 
+# Ticket workspace — local cache of in-progress tickets
+.ticket/*
+!.ticket/repo.md
+!.ticket/.gitkeep
+
 # 文档与测试程序
 mydoc/
 mytest/
