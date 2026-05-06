@@ -43,7 +43,11 @@ htmlcov/
 
 # Cursor
 .cursor/
-.claude/
+
+# Claude Code — track project config, ignore user-local overrides
+.claude/settings.local.json
+.claude/.credentials.json
+.codegraph/
 
 # 文档与测试程序
 mydoc/

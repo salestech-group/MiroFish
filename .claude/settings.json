@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": [
+      "Read(*/.env*)",
+      "Read(*/secrets/*)",
+      "Write(*/.env*)",
+      "Write(*/secrets/*)",
+      "Edit(*/.env*)",
+      "Edit(*/secrets/*)",
+      "Bash(rm -f*)",
+      "Bash(rm -rf*)",
+      "Bash(git push -f*)",
+      "Bash(git push --force*)"
+    ]
+  }
+}
