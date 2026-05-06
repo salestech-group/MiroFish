@@ -20,7 +20,7 @@
 [![X](https://img.shields.io/badge/X-Follow-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/mirofish_ai)
 [![Instagram](https://img.shields.io/badge/Instagram-Follow-E4405F?style=flat-square&logo=instagram&logoColor=white)](https://www.instagram.com/mirofish_ai/)
 
-[English](./README-EN.md) | [中文文档](./README.md)
+[English](./README.md) | [中文文档](./README-ZH.md)
 
 </div>
 
@@ -93,7 +93,24 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 
 ## 🚀 Quick Start
 
-### Option 1: Source Code Deployment (Recommended)
+### Option 1: Docker Deployment (Recommended)
+
+The Docker setup brings up the full stack — frontend, backend, and Neo4j — with a single command.
+
+```bash
+# 1. Copy and configure environment variables
+cp .env.example .env
+# Edit .env and fill in LLM_API_KEY (and Neo4j password if you want to override the default)
+
+# 2. Pull images and start
+docker compose up -d
+```
+
+Reads `.env` from the project root, exposes ports `3000` (frontend) and `5001` (backend).
+
+> A faster mirror address is provided as a comment inside `docker-compose.yml`; uncomment to use it.
+
+### Option 2: Source Code Deployment
 
 #### Prerequisites
 
@@ -145,11 +162,22 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_neo4j_password
 
-# Embedding model (uncomment if using Gemini API)
+# Embedding model (uncomment if using a non-OpenAI provider, e.g. Gemini)
 # EMBEDDING_MODEL=gemini-embedding-001
 ```
 
-> **Note:** MiroFish has migrated from Zep Cloud to local **Graphiti + Neo4j**. No third-party account required — completely free with no rate limits.
+**Optional — Accelerated LLM Configuration:**
+
+If you have a faster/cheaper provider, you can route auxiliary calls through it.
+**Omit these entirely** if not used (do not leave placeholder values).
+
+```env
+LLM_BOOST_API_KEY=your_api_key_here
+LLM_BOOST_BASE_URL=your_base_url_here
+LLM_BOOST_MODEL_NAME=your_model_name_here
+```
+
+> **Note:** MiroFish has migrated from Zep Cloud to local **Graphiti + Neo4j**. No third-party knowledge-graph account is required — completely free with no rate limits.
 
 #### 2. Install Dependencies
 
@@ -185,20 +213,6 @@ npm run dev
 npm run backend   # Start backend only
 npm run frontend  # Start frontend only
 ```
-
-### Option 2: Docker Deployment
-
-```bash
-# 1. Configure environment variables (same as source deployment)
-cp .env.example .env
-
-# 2. Pull image and start
-docker compose up -d
-```
-
-Reads `.env` from root directory by default, maps ports `3000 (frontend) / 5001 (backend)`
-
-> Mirror address for faster pulling is provided as comments in `docker-compose.yml`, replace if needed.
 
 ## 📬 Join the Conversation
 
