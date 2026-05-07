@@ -772,7 +772,9 @@
       "m020": "处理实体 {entity} 时发生异常: {str}",
       "m021": "已保存 {len} 个Twitter Profile到 {file_path} (OASIS CSV格式)",
       "m022": "已保存 {len} 个Reddit Profile到 {file_path} (JSON格式，包含user_id字段)",
-      "m023": "save_profiles_to_json已废弃，请使用save_profiles方法"
+      "m023": "save_profiles_to_json已废弃，请使用save_profiles方法",
+      "m024": "开始生成Agent人设 - 共 {total} 个实体，并行数: {parallel_count}",
+      "m025": "人设生成完成！共生成 {count} 个Agent"
     },
     "simulation_config": {
       "m001": "开始智能生成模拟配置: simulation_id={simulation_id}, 实体数={len}",
@@ -920,7 +922,10 @@
       "m017": "=== 开始构建图谱 ===",
       "m018": "配置错误: {errors}",
       "m019": "请求参数: project_id={project_id}",
-      "m026": "创建图谱构建任务: task_id={task_id}, project_id={project_id}"
+      "m026": "创建图谱构建任务: task_id={task_id}, project_id={project_id}",
+      "m027": "[{task_id}] 开始构建图谱...",
+      "m028": "[{task_id}] 图谱构建完成: graph_id={graph_id}, 节点={node_count}, 边={edge_count}",
+      "m029": "[{task_id}] 图谱构建失败: {e}"
     },
     "bootstrap": {
       "m001": "MiroFish Backend 启动中...",
@@ -929,6 +934,12 @@
       "m004": "请求体: {request}",
       "m005": "响应: {response}",
       "m006": "MiroFish Backend 启动完成"
+    },
+    "retry": {
+      "m001": "函数 {func_name} 在 {max_retries} 次重试后仍失败: {e}",
+      "m002": "异步函数 {func_name} 在 {max_retries} 次重试后仍失败: {e}",
+      "m003": "API调用在 {max_retries} 次重试后仍失败: {e}",
+      "m004": "处理第 {index} 项失败: {e}"
     }
   },
   "report": {

@@ -942,7 +942,7 @@ class OasisProfileGenerator:
         
         logger.info(t("log.profile_generator.m017", total=total, parallel_count=parallel_count))
         print(f"\n{'='*60}")
-        print(f"开始生成Agent人设 - 共 {total} 个实体，并行数: {parallel_count}")
+        print(t("log.profile_generator.m024", total=total, parallel_count=parallel_count))
         print(f"{'='*60}\n")
         
         # 使用线程池并行执行
@@ -998,7 +998,7 @@ class OasisProfileGenerator:
                     save_profiles_realtime()
         
         print(f"\n{'='*60}")
-        print(f"人设生成完成！共生成 {len([p for p in profiles if p])} 个Agent")
+        print(t("log.profile_generator.m025", count=len([p for p in profiles if p])))
         print(f"{'='*60}\n")
         
         return profiles
