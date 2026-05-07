@@ -12,6 +12,7 @@ from .graphiti_adapter import GraphitiAdapter
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
+from ..utils.locale import t
 
 logger = get_logger('mirofish.zep_entity_reader')
 
@@ -110,13 +111,12 @@ class ZepEntityReader:
                 last_exception = e
                 if attempt < max_retries - 1:
                     logger.warning(
-                        f"Zep {operation_name} 第 {attempt + 1} 次尝试失败: {str(e)[:100]}, "
-                        f"{delay:.1f}秒后重试..."
+                        t("log.zep_entity_reader.m001", operation_name=operation_name, attempt=attempt + 1, str=str(e)[:100], delay=delay)
                     )
                     time.sleep(delay)
                     delay *= 2  # 指数退避
                 else:
-                    logger.error(f"Zep {operation_name} 在 {max_retries} 次尝试后仍失败: {str(e)}")
+                    logger.error(t("log.zep_entity_reader.m002", operation_name=operation_name, max_retries=max_retries, str=str(e)))
         
         raise last_exception
     
@@ -130,7 +130,7 @@ class ZepEntityReader:
         Returns:
             节点列表
         """
-        logger.info(f"获取图谱 {graph_id} 的所有节点...")
+        logger.info(t("log.zep_entity_reader.m003", graph_id=graph_id))
 
         nodes = fetch_all_nodes(self.client, graph_id)
 
@@ -144,7 +144,7 @@ class ZepEntityReader:
                 "attributes": node.attributes or {},
             })
 
-        logger.info(f"共获取 {len(nodes_data)} 个节点")
+        logger.info(t("log.zep_entity_reader.m004", len=len(nodes_data)))
         return nodes_data
 
     def get_all_edges(self, graph_id: str) -> List[Dict[str, Any]]:
@@ -157,7 +157,7 @@ class ZepEntityReader:
         Returns:
             边列表
         """
-        logger.info(f"获取图谱 {graph_id} 的所有边...")
+        logger.info(t("log.zep_entity_reader.m005", graph_id=graph_id))
 
         edges = fetch_all_edges(self.client, graph_id)
 
@@ -172,7 +172,7 @@ class ZepEntityReader:
                 "attributes": edge.attributes or {},
             })
 
-        logger.info(f"共获取 {len(edges_data)} 条边")
+        logger.info(t("log.zep_entity_reader.m006", len=len(edges_data)))
         return edges_data
     
     def get_node_edges(self, node_uuid: str) -> List[Dict[str, Any]]:
@@ -205,7 +205,7 @@ class ZepEntityReader:
             
             return edges_data
         except Exception as e:
-            logger.warning(f"获取节点 {node_uuid} 的边失败: {str(e)}")
+            logger.warning(t("log.zep_entity_reader.m007", node_uuid=node_uuid, str=str(e)))
             return []
     
     def filter_defined_entities(
@@ -229,7 +229,7 @@ class ZepEntityReader:
         Returns:
             FilteredEntities: 过滤后的实体集合
         """
-        logger.info(f"开始筛选图谱 {graph_id} 的实体...")
+        logger.info(t("log.zep_entity_reader.m008", graph_id=graph_id))
 
         # Look up ontology from project to classify entities
         ontology = None
@@ -340,8 +340,7 @@ class ZepEntityReader:
             
             filtered_entities.append(entity)
         
-        logger.info(f"筛选完成: 总节点 {total_count}, 符合条件 {len(filtered_entities)}, "
-                   f"实体类型: {entity_types_found}")
+        logger.info(t("log.zep_entity_reader.m009", total_count=total_count, len=len(filtered_entities), entity_types_found=entity_types_found))
         
         return FilteredEntities(
             entities=filtered_entities,
@@ -427,7 +426,7 @@ class ZepEntityReader:
             )
             
         except Exception as e:
-            logger.error(f"获取实体 {entity_uuid} 失败: {str(e)}")
+            logger.error(t("log.zep_entity_reader.m010", entity_uuid=entity_uuid, str=str(e)))
             return None
     
     def get_entities_by_type(

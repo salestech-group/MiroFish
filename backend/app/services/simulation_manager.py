@@ -223,7 +223,7 @@ class SimulationManager:
         )
         
         self._save_simulation_state(state)
-        logger.info(f"创建模拟: {simulation_id}, project={project_id}, graph={graph_id}")
+        logger.info(t("log.simulation_manager.m001", simulation_id=simulation_id, project_id=project_id, graph_id=graph_id))
         
         return state
     
@@ -442,13 +442,12 @@ class SimulationManager:
             state.status = SimulationStatus.READY
             self._save_simulation_state(state)
             
-            logger.info(f"模拟准备完成: {simulation_id}, "
-                       f"entities={state.entities_count}, profiles={state.profiles_count}")
+            logger.info(t("log.simulation_manager.m002", simulation_id=simulation_id, state=state.entities_count, state_2=state.profiles_count))
             
             return state
             
         except Exception as e:
-            logger.error(f"模拟准备失败: {simulation_id}, error={str(e)}")
+            logger.error(t("log.simulation_manager.m003", simulation_id=simulation_id, str=str(e)))
             import traceback
             logger.error(traceback.format_exc())
             state.status = SimulationStatus.FAILED

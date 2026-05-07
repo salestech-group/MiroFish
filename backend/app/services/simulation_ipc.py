@@ -18,6 +18,7 @@ from datetime import datetime
 from enum import Enum
 
 from ..utils.logger import get_logger
+from ..utils.locale import t
 
 logger = get_logger('mirofish.simulation_ipc')
 
@@ -148,7 +149,7 @@ class SimulationIPCClient:
         with open(command_file, 'w', encoding='utf-8') as f:
             json.dump(command.to_dict(), f, ensure_ascii=False, indent=2)
         
-        logger.info(f"发送IPC命令: {command_type.value}, command_id={command_id}")
+        logger.info(t("log.simulation_ipc.m001", command_type=command_type.value, command_id=command_id))
         
         # 等待响应
         response_file = os.path.join(self.responses_dir, f"{command_id}.json")
@@ -168,15 +169,15 @@ class SimulationIPCClient:
                     except OSError:
                         pass
                     
-                    logger.info(f"收到IPC响应: command_id={command_id}, status={response.status.value}")
+                    logger.info(t("log.simulation_ipc.m002", command_id=command_id, response=response.status.value))
                     return response
                 except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"解析响应失败: {e}")
+                    logger.warning(t("log.simulation_ipc.m003", e=e))
             
             time.sleep(poll_interval)
         
         # 超时
-        logger.error(f"等待IPC响应超时: command_id={command_id}")
+        logger.error(t("log.simulation_ipc.m004", command_id=command_id))
         
         # 清理命令文件
         try:
@@ -354,7 +355,7 @@ class SimulationIPCServer:
                     data = json.load(f)
                 return IPCCommand.from_dict(data)
             except (json.JSONDecodeError, KeyError, OSError) as e:
-                logger.warning(f"读取命令文件失败: {filepath}, {e}")
+                logger.warning(t("log.simulation_ipc.m005", filepath=filepath, e=e))
                 continue
         
         return None

@@ -18,6 +18,7 @@ from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
+from ..utils.locale import t
 
 # In-memory cache for graph data to avoid hammering Zep's rate-limited API.
 # Stale cache is served instantly on 429; a background thread refreshes it.
@@ -49,7 +50,7 @@ def get_project(project_id: str):
     if not project:
         return jsonify({
             "success": False,
-            "error": f"项目不存在: {project_id}"
+            "error": t("api.error.graph.m001", project_id=project_id)
         }), 404
     
     return jsonify({
@@ -83,12 +84,12 @@ def delete_project(project_id: str):
     if not success:
         return jsonify({
             "success": False,
-            "error": f"项目不存在或删除失败: {project_id}"
+            "error": t("api.error.graph.m002", project_id=project_id)
         }), 404
     
     return jsonify({
         "success": True,
-        "message": f"项目已删除: {project_id}"
+        "message": t("api.message.graph.m003", project_id=project_id)
     })
 
 
@@ -102,7 +103,7 @@ def reset_project(project_id: str):
     if not project:
         return jsonify({
             "success": False,
-            "error": f"项目不存在: {project_id}"
+            "error": t("api.error.graph.m004", project_id=project_id)
         }), 404
     
     # 重置到本体已生成状态
@@ -118,7 +119,7 @@ def reset_project(project_id: str):
     
     return jsonify({
         "success": True,
-        "message": f"项目已重置: {project_id}",
+        "message": t("api.message.graph.m005", project_id=project_id),
         "data": project.to_dict()
     })
 
@@ -154,20 +155,20 @@ def generate_ontology():
         }
     """
     try:
-        logger.info("=== 开始生成本体定义 ===")
+        logger.info(t("log.graph_api.m006"))
         
         # 获取参数
         simulation_requirement = request.form.get('simulation_requirement', '')
         project_name = request.form.get('project_name', 'Unnamed Project')
         additional_context = request.form.get('additional_context', '')
         
-        logger.debug(f"项目名称: {project_name}")
-        logger.debug(f"模拟需求: {simulation_requirement[:100]}...")
+        logger.debug(t("log.graph_api.m007", project_name=project_name))
+        logger.debug(t("log.graph_api.m008", simulation_requirement=simulation_requirement[:100]))
         
         if not simulation_requirement:
             return jsonify({
                 "success": False,
-                "error": "请提供模拟需求描述 (simulation_requirement)"
+                "error": t("api.error.graph.m009")
             }), 400
         
         # 获取上传的文件
@@ -175,13 +176,13 @@ def generate_ontology():
         if not uploaded_files or all(not f.filename for f in uploaded_files):
             return jsonify({
                 "success": False,
-                "error": "请至少上传一个文档文件"
+                "error": t("api.error.graph.m010")
             }), 400
         
         # 创建项目
         project = ProjectManager.create_project(name=project_name)
         project.simulation_requirement = simulation_requirement
-        logger.info(f"创建项目: {project.project_id}")
+        logger.info(t("log.graph_api.m011", project=project.project_id))
         
         # 保存文件并提取文本
         document_texts = []
@@ -210,16 +211,16 @@ def generate_ontology():
             ProjectManager.delete_project(project.project_id)
             return jsonify({
                 "success": False,
-                "error": "没有成功处理任何文档，请检查文件格式"
+                "error": t("api.error.graph.m012")
             }), 400
         
         # 保存提取的文本
         project.total_text_length = len(all_text)
         ProjectManager.save_extracted_text(project.project_id, all_text)
-        logger.info(f"文本提取完成，共 {len(all_text)} 字符")
+        logger.info(t("log.graph_api.m013", len=len(all_text)))
         
         # 生成本体
-        logger.info("调用 LLM 生成本体定义...")
+        logger.info(t("log.graph_api.m014"))
         generator = OntologyGenerator()
         ontology = generator.generate(
             document_texts=document_texts,
@@ -230,7 +231,7 @@ def generate_ontology():
         # 保存本体到项目
         entity_count = len(ontology.get("entity_types", []))
         edge_count = len(ontology.get("edge_types", []))
-        logger.info(f"本体生成完成: {entity_count} 个实体类型, {edge_count} 个关系类型")
+        logger.info(t("log.graph_api.m015", entity_count=entity_count, edge_count=edge_count))
         
         project.ontology = {
             "entity_types": ontology.get("entity_types", []),
@@ -239,7 +240,7 @@ def generate_ontology():
         project.analysis_summary = ontology.get("analysis_summary", "")
         project.status = ProjectStatus.ONTOLOGY_GENERATED
         ProjectManager.save_project(project)
-        logger.info(f"=== 本体生成完成 === 项目ID: {project.project_id}")
+        logger.info(t("log.graph_api.m016", project=project.project_id))
         
         return jsonify({
             "success": True,
@@ -287,14 +288,14 @@ def build_graph():
         }
     """
     try:
-        logger.info("=== 开始构建图谱 ===")
+        logger.info(t("log.graph_api.m017"))
         
         # 检查配置
         errors = []
         if not Config.NEO4J_PASSWORD:
             errors.append("NEO4J未配置")
         if errors:
-            logger.error(f"配置错误: {errors}")
+            logger.error(t("log.graph_api.m018", errors=errors))
             return jsonify({
                 "success": False,
                 "error": "配置错误: " + "; ".join(errors)
@@ -303,12 +304,12 @@ def build_graph():
         # 解析请求
         data = request.get_json() or {}
         project_id = data.get('project_id')
-        logger.debug(f"请求参数: project_id={project_id}")
+        logger.debug(t("log.graph_api.m019", project_id=project_id))
         
         if not project_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 project_id"
+                "error": t("api.error.graph.m020")
             }), 400
         
         # 获取项目
@@ -316,7 +317,7 @@ def build_graph():
         if not project:
             return jsonify({
                 "success": False,
-                "error": f"项目不存在: {project_id}"
+                "error": t("api.error.graph.m021", project_id=project_id)
             }), 404
         
         # 检查项目状态
@@ -325,13 +326,13 @@ def build_graph():
         if project.status == ProjectStatus.CREATED:
             return jsonify({
                 "success": False,
-                "error": "项目尚未生成本体，请先调用 /ontology/generate"
+                "error": t("api.error.graph.m022")
             }), 400
         
         if project.status == ProjectStatus.GRAPH_BUILDING and not force:
             return jsonify({
                 "success": False,
-                "error": "图谱正在构建中，请勿重复提交。如需强制重建，请添加 force: true",
+                "error": t("api.error.graph.m023"),
                 "task_id": project.graph_build_task_id
             }), 400
         
@@ -356,7 +357,7 @@ def build_graph():
         if not text:
             return jsonify({
                 "success": False,
-                "error": "未找到提取的文本内容"
+                "error": t("api.error.graph.m024")
             }), 400
         
         # 获取本体
@@ -364,13 +365,13 @@ def build_graph():
         if not ontology:
             return jsonify({
                 "success": False,
-                "error": "未找到本体定义"
+                "error": t("api.error.graph.m025")
             }), 400
         
         # 创建异步任务
         task_manager = TaskManager()
         task_id = task_manager.create_task(f"构建图谱: {graph_name}")
-        logger.info(f"创建图谱构建任务: task_id={task_id}, project_id={project_id}")
+        logger.info(t("log.graph_api.m026", task_id=task_id, project_id=project_id))
         
         # 更新项目状态
         project.status = ProjectStatus.GRAPH_BUILDING
@@ -556,7 +557,7 @@ def get_task(task_id: str):
     if not task:
         return jsonify({
             "success": False,
-            "error": f"任务不存在: {task_id}"
+            "error": t("api.error.graph.m027", task_id=task_id)
         }), 404
     
     return jsonify({
@@ -613,7 +614,7 @@ def get_graph_data(graph_id: str):
     - 无缓存：后台线程拉取，返回 202 让前端稍后重试
     """
     if not Config.NEO4J_PASSWORD:
-        return jsonify({"success": False, "error": "NEO4J未配置"}), 500
+        return jsonify({"success": False, "error": t("api.error.graph.m028")}), 500
 
     cached = _graph_data_cache.get(graph_id)
     age = time.time() - cached["ts"] if cached else None
@@ -645,7 +646,7 @@ def delete_graph(graph_id: str):
         if not Config.NEO4J_PASSWORD:
             return jsonify({
                 "success": False,
-                "error": "NEO4J未配置"
+                "error": t("api.error.graph.m029")
             }), 500
         
         builder = GraphBuilderService()
@@ -653,7 +654,7 @@ def delete_graph(graph_id: str):
         
         return jsonify({
             "success": True,
-            "message": f"图谱已删除: {graph_id}"
+            "message": t("api.message.graph.m030", graph_id=graph_id)
         })
         
     except Exception as e:
