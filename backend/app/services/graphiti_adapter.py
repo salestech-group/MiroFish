@@ -453,9 +453,17 @@ class _GraphNamespace:
         return _EpisodeResult(uuid_=ep_uuid_out)
 
     def add_batch(self, graph_id: str, episodes: List[Any]) -> List[_EpisodeResult]:
-        """Add a batch of episodes. Returns list of EpisodeResult with uuid_."""
+        """Add a batch of episodes. Returns one _EpisodeResult per episode in input order.
+
+        On the first ingestion failure the underlying exception is logged at ERROR
+        level (with traceback) and re-raised; episodes successfully ingested before
+        the failure remain committed in Neo4j. The caller (the graph-build worker)
+        translates the propagated exception into Task.status = FAILED with the
+        underlying error message — never substitute a placeholder UUID, since that
+        would produce a Task that looks completed while the graph is empty.
+        """
         results = []
-        for ep in episodes:
+        for index, ep in enumerate(episodes):
             text = getattr(ep, 'data', '') or str(ep)
             try:
                 result = _run(self._g.add_episode(
@@ -467,10 +475,13 @@ class _GraphNamespace:
                     group_id=graph_id,
                     update_communities=False,
                 ))
-                ep_uuid_out = result.episode.uuid if result and result.episode else str(_uuid_mod.uuid4())
-            except Exception as e:
-                logger.warning(f"Episode add failed: {str(e)[:100]}, using placeholder uuid")
-                ep_uuid_out = str(_uuid_mod.uuid4())
+            except Exception:
+                logger.exception(
+                    "Episode add failed (group_id=%s, episode_index=%d)",
+                    graph_id, index,
+                )
+                raise
+            ep_uuid_out = result.episode.uuid if result and result.episode else str(_uuid_mod.uuid4())
             results.append(_EpisodeResult(uuid_=ep_uuid_out))
         return results
 

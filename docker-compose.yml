@@ -28,6 +28,9 @@ services:
     environment:
       # In-Docker override; host-mode (`npm run dev`) uses the bolt://localhost:7687 default from Config.
       NEO4J_URI: bolt://neo4j:7687
+      # Note: an Ollama daemon running on the host is reached from this container
+      # via host.docker.internal:11434. Set EMBEDDING_BASE_URL=http://host.docker.internal:11434/v1
+      # in your .env to point the Graphiti embedder at a local Ollama instance.
     depends_on:
       neo4j:
         condition: service_healthy
