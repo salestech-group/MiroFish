@@ -1,0 +1,27 @@
+{
+  "feature_name": "i18n-backfill-zh-json",
+  "created_at": "2026-05-07T15:24:17Z",
+  "updated_at": "2026-05-07T15:24:17Z",
+  "language": "en",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true,
+  "ticket": {
+    "number": 8,
+    "url": "https://github.com/salestech-group/MiroFish/issues/8",
+    "snapshot": ".ticket/8.md"
+  }
+}
