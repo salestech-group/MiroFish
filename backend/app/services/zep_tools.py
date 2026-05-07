@@ -501,7 +501,6 @@ class ZepToolsService:
                     query=query,
                     limit=limit,
                     scope=scope,
-                    reranker="cross_encoder"
                 ),
                 operation_name=f"图谱搜索(graph={graph_id})"
             )
