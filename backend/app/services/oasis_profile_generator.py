@@ -321,7 +321,6 @@ class OasisProfileGenerator:
                         graph_id=self.graph_id,
                         limit=30,
                         scope="edges",
-                        reranker="rrf"
                     )
                 except Exception as e:
                     last_exception = e
@@ -346,7 +345,6 @@ class OasisProfileGenerator:
                         graph_id=self.graph_id,
                         limit=20,
                         scope="nodes",
-                        reranker="rrf"
                     )
                 except Exception as e:
                     last_exception = e

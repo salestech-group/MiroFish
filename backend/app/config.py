@@ -39,6 +39,17 @@ class Config:
     # Embedding model — override when using non-OpenAI APIs (e.g. Gemini: text-embedding-004)
     EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
 
+    # Graphiti provider switch. Allowed: "openai", "gemini".
+    # "openai" works for any OpenAI-SDK-compatible endpoint (Qwen via Dashscope,
+    # GLM, OpenAI itself). Set to "gemini" to use Google Gemini directly.
+    GRAPHITI_LLM_PROVIDER = os.environ.get('GRAPHITI_LLM_PROVIDER', 'openai')
+
+    # Optional dedicated embedder credentials. Default to LLM_API_KEY / LLM_BASE_URL.
+    # Useful when chat is Dashscope/Qwen (no OpenAI-compatible embeddings) but the
+    # embedder should target OpenAI directly.
+    EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY')
+    EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL')
+
     # Zep配置（保留兼容性，已废弃）
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY', '')
     

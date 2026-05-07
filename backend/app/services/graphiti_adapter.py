@@ -27,8 +27,6 @@ from graphiti_core.search.search_config_recipes import (
     EDGE_HYBRID_SEARCH_RRF,
 )
 from graphiti_core.llm_client.config import LLMConfig
-from graphiti_core.llm_client.gemini_client import GeminiClient
-from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
 from graphiti_core.cross_encoder.client import CrossEncoderClient
 
 from ..config import Config
@@ -37,17 +35,19 @@ from ..utils.logger import get_logger
 logger = get_logger('mirofish.graphiti_adapter')
 
 
-class _GeminiReranker(CrossEncoderClient):
-    """Simple reranker using Gemini — returns passages sorted by relevance."""
+class _PassthroughReranker(CrossEncoderClient):
+    """Provider-agnostic no-op reranker.
 
-    def __init__(self, client: GeminiClient):
-        self._client = client
+    Returns passages in the order Graphiti supplied them with synthetic
+    descending scores. Injected explicitly so Graphiti does not fall back
+    to its default ``OpenAIRerankerClient`` (which uses a hard-coded
+    ``gpt-4.1-nano`` model with logprobs and would 401 against Qwen /
+    Dashscope keys). A real per-provider reranker is a follow-up.
+    """
 
     async def rank(self, query: str, passages: list[str]) -> list[tuple[str, float]]:
         if not passages:
             return []
-        # Return in original order — Gemini doesn't support logprobs for reranking
-        # This is a no-op reranker: correct but unoptimized ordering
         return [(p, 1.0 - i * 0.01) for i, p in enumerate(passages)]
 
 # ---------------------------------------------------------------------------
@@ -86,31 +86,74 @@ _graphiti_instance: Optional[Graphiti] = None
 _graphiti_lock = threading.Lock()
 
 
+_ALLOWED_GRAPHITI_PROVIDERS = ("openai", "gemini")
+
+
+def _build_llm_and_embedder(provider: str):
+    """Build (llm_client, embedder) for the requested Graphiti provider.
+
+    Lazy-imports provider-specific Graphiti classes so a missing optional
+    dependency for one provider does not break the other at import time.
+    """
+    if provider == "openai":
+        from graphiti_core.llm_client.openai_client import OpenAIClient
+        from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
+
+        llm_client = OpenAIClient(
+            config=LLMConfig(
+                api_key=Config.LLM_API_KEY,
+                base_url=Config.LLM_BASE_URL,
+                model=Config.LLM_MODEL_NAME,
+            )
+        )
+        embedder = OpenAIEmbedder(
+            config=OpenAIEmbedderConfig(
+                api_key=Config.EMBEDDING_API_KEY or Config.LLM_API_KEY,
+                base_url=Config.EMBEDDING_BASE_URL or Config.LLM_BASE_URL,
+                embedding_model=Config.EMBEDDING_MODEL,
+            )
+        )
+        return llm_client, embedder
+
+    if provider == "gemini":
+        from graphiti_core.llm_client.gemini_client import GeminiClient
+        from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
+
+        llm_client = GeminiClient(
+            config=LLMConfig(
+                api_key=Config.LLM_API_KEY,
+                model=Config.LLM_MODEL_NAME,
+            )
+        )
+        embedder = GeminiEmbedder(
+            config=GeminiEmbedderConfig(
+                api_key=Config.LLM_API_KEY,
+                embedding_model=Config.EMBEDDING_MODEL,
+            )
+        )
+        return llm_client, embedder
+
+    raise ValueError(
+        f"Unknown GRAPHITI_LLM_PROVIDER={provider!r}; "
+        f"allowed: {_ALLOWED_GRAPHITI_PROVIDERS}"
+    )
+
+
 def _get_graphiti() -> Graphiti:
     global _graphiti_instance
     if _graphiti_instance is None:
         with _graphiti_lock:
             if _graphiti_instance is None:
-                logger.info("Initializing Graphiti client...")
-                llm_cfg = LLMConfig(
-                    api_key=Config.LLM_API_KEY,
-                    model=Config.LLM_MODEL_NAME,
-                )
-                llm_client = GeminiClient(config=llm_cfg)
-                embedder = GeminiEmbedder(
-                    config=GeminiEmbedderConfig(
-                        api_key=Config.LLM_API_KEY,
-                        embedding_model=Config.EMBEDDING_MODEL,
-                    )
-                )
-                cross_encoder = _GeminiReranker(llm_client)
+                provider = (Config.GRAPHITI_LLM_PROVIDER or "openai").lower()
+                logger.info(f"Initializing Graphiti client (provider={provider})...")
+                llm_client, embedder = _build_llm_and_embedder(provider)
                 g = Graphiti(
                     Config.NEO4J_URI,
                     Config.NEO4J_USER,
                     Config.NEO4J_PASSWORD,
                     llm_client=llm_client,
                     embedder=embedder,
-                    cross_encoder=cross_encoder,
+                    cross_encoder=_PassthroughReranker(),
                 )
                 # Use the persistent loop so the driver is bound to it from the start
                 _run(g.build_indices_and_constraints())
@@ -437,7 +480,6 @@ class _GraphNamespace:
         query: str,
         limit: int = 10,
         scope: str = "edges",
-        reranker: Optional[str] = None,
     ) -> _SearchResults:
         """Semantic search over the graph. scope='edges'|'nodes'|'both'."""
         try:
