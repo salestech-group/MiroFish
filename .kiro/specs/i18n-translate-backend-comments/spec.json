@@ -1,0 +1,24 @@
+{
+  "feature_name": "i18n-translate-backend-comments",
+  "created_at": "2026-05-07T14:24:17Z",
+  "updated_at": "2026-05-07T14:26:00Z",
+  "language": "en",
+  "phase": "tasks-generated",
+  "ticket": 7,
+  "ticket_url": "https://github.com/salestech-group/MiroFish/issues/7",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}
