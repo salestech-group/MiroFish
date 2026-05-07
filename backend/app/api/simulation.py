@@ -15,6 +15,7 @@ from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..utils.logger import get_logger
 from ..models.project import ProjectManager
+from ..utils.locale import t
 
 logger = get_logger('mirofish.api.simulation')
 
@@ -59,14 +60,14 @@ def get_graph_entities(graph_id: str):
         if not Config.NEO4J_PASSWORD:
             return jsonify({
                 "success": False,
-                "error": "NEO4J未配置"
+                "error": t("api.error.simulation.m001")
             }), 500
         
         entity_types_str = request.args.get('entity_types', '')
         entity_types = [t.strip() for t in entity_types_str.split(',') if t.strip()] if entity_types_str else None
         enrich = request.args.get('enrich', 'true').lower() == 'true'
         
-        logger.info(f"获取图谱实体: graph_id={graph_id}, entity_types={entity_types}, enrich={enrich}")
+        logger.info(t("log.simulation_api.m002", graph_id=graph_id, entity_types=entity_types, enrich=enrich))
         
         reader = ZepEntityReader()
         result = reader.filter_defined_entities(
@@ -81,7 +82,7 @@ def get_graph_entities(graph_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取图谱实体失败: {str(e)}")
+        logger.error(t("log.simulation_api.m003", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -96,7 +97,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
         if not Config.NEO4J_PASSWORD:
             return jsonify({
                 "success": False,
-                "error": "NEO4J未配置"
+                "error": t("api.error.simulation.m004")
             }), 500
         
         reader = ZepEntityReader()
@@ -105,7 +106,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
         if not entity:
             return jsonify({
                 "success": False,
-                "error": f"实体不存在: {entity_uuid}"
+                "error": t("api.error.simulation.m005", entity_uuid=entity_uuid)
             }), 404
         
         return jsonify({
@@ -114,7 +115,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
         })
         
     except Exception as e:
-        logger.error(f"获取实体详情失败: {str(e)}")
+        logger.error(t("log.simulation_api.m006", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -129,7 +130,7 @@ def get_entities_by_type(graph_id: str, entity_type: str):
         if not Config.NEO4J_PASSWORD:
             return jsonify({
                 "success": False,
-                "error": "NEO4J未配置"
+                "error": t("api.error.simulation.m007")
             }), 500
         
         enrich = request.args.get('enrich', 'true').lower() == 'true'
@@ -151,7 +152,7 @@ def get_entities_by_type(graph_id: str, entity_type: str):
         })
         
     except Exception as e:
-        logger.error(f"获取实体失败: {str(e)}")
+        logger.error(t("log.simulation_api.m008", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -197,21 +198,21 @@ def create_simulation():
         if not project_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 project_id"
+                "error": t("api.error.simulation.m009")
             }), 400
         
         project = ProjectManager.get_project(project_id)
         if not project:
             return jsonify({
                 "success": False,
-                "error": f"项目不存在: {project_id}"
+                "error": t("api.error.simulation.m010", project_id=project_id)
             }), 404
         
         graph_id = data.get('graph_id') or project.graph_id
         if not graph_id:
             return jsonify({
                 "success": False,
-                "error": "项目尚未构建图谱，请先调用 /api/graph/build"
+                "error": t("api.error.simulation.m011")
             }), 400
         
         manager = SimulationManager()
@@ -228,7 +229,7 @@ def create_simulation():
         })
         
     except Exception as e:
-        logger.error(f"创建模拟失败: {str(e)}")
+        logger.error(t("log.simulation_api.m012", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -297,7 +298,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         config_generated = state_data.get("config_generated", False)
         
         # 详细日志
-        logger.debug(f"检测模拟准备状态: {simulation_id}, status={status}, config_generated={config_generated}")
+        logger.debug(t("log.simulation_api.m013", simulation_id=simulation_id, status=status, config_generated=config_generated))
         
         # 如果 config_generated=True 且文件存在，认为准备完成
         # 以下状态都说明准备工作已完成：
@@ -327,12 +328,12 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
                     state_data["updated_at"] = datetime.now().isoformat()
                     with open(state_file, 'w', encoding='utf-8') as f:
                         json.dump(state_data, f, ensure_ascii=False, indent=2)
-                    logger.info(f"自动更新模拟状态: {simulation_id} preparing -> ready")
+                    logger.info(t("log.simulation_api.m014", simulation_id=simulation_id))
                     status = "ready"
                 except Exception as e:
-                    logger.warning(f"自动更新状态失败: {e}")
+                    logger.warning(t("log.simulation_api.m015", e=e))
             
-            logger.info(f"模拟 {simulation_id} 检测结果: 已准备完成 (status={status}, config_generated={config_generated})")
+            logger.info(t("log.simulation_api.m016", simulation_id=simulation_id, status=status, config_generated=config_generated))
             return True, {
                 "status": status,
                 "entities_count": state_data.get("entities_count", 0),
@@ -344,7 +345,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
                 "existing_files": existing_files
             }
         else:
-            logger.warning(f"模拟 {simulation_id} 检测结果: 未准备完成 (status={status}, config_generated={config_generated})")
+            logger.warning(t("log.simulation_api.m017", simulation_id=simulation_id, status=status, config_generated=config_generated))
             return False, {
                 "reason": f"状态不在已准备列表中或config_generated为false: status={status}, config_generated={config_generated}",
                 "status": status,
@@ -408,7 +409,7 @@ def prepare_simulation():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m018")
             }), 400
         
         manager = SimulationManager()
@@ -417,20 +418,20 @@ def prepare_simulation():
         if not state:
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": t("api.error.simulation.m019", simulation_id=simulation_id)
             }), 404
         
         # 检查是否强制重新生成
         force_regenerate = data.get('force_regenerate', False)
-        logger.info(f"开始处理 /prepare 请求: simulation_id={simulation_id}, force_regenerate={force_regenerate}")
+        logger.info(t("log.simulation_api.m020", simulation_id=simulation_id, force_regenerate=force_regenerate))
         
         # 检查是否已经准备完成（避免重复生成）
         if not force_regenerate:
-            logger.debug(f"检查模拟 {simulation_id} 是否已准备完成...")
+            logger.debug(t("log.simulation_api.m021", simulation_id=simulation_id))
             is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
-            logger.debug(f"检查结果: is_prepared={is_prepared}, prepare_info={prepare_info}")
+            logger.debug(t("log.simulation_api.m022", is_prepared=is_prepared, prepare_info=prepare_info))
             if is_prepared:
-                logger.info(f"模拟 {simulation_id} 已准备完成，跳过重复生成")
+                logger.info(t("log.simulation_api.m023", simulation_id=simulation_id))
                 return jsonify({
                     "success": True,
                     "data": {
@@ -442,14 +443,14 @@ def prepare_simulation():
                     }
                 })
             else:
-                logger.info(f"模拟 {simulation_id} 未准备完成，将启动准备任务")
+                logger.info(t("log.simulation_api.m024", simulation_id=simulation_id))
         
         # 从项目获取必要信息
         project = ProjectManager.get_project(state.project_id)
         if not project:
             return jsonify({
                 "success": False,
-                "error": f"项目不存在: {state.project_id}"
+                "error": t("api.error.simulation.m025", state=state.project_id)
             }), 404
         
         # 获取模拟需求
@@ -457,7 +458,7 @@ def prepare_simulation():
         if not simulation_requirement:
             return jsonify({
                 "success": False,
-                "error": "项目缺少模拟需求描述 (simulation_requirement)"
+                "error": t("api.error.simulation.m026")
             }), 400
         
         # 获取文档文本
@@ -470,7 +471,7 @@ def prepare_simulation():
         # ========== 同步获取实体数量（在后台任务启动前） ==========
         # 这样前端在调用prepare后立即就能获取到预期Agent总数
         try:
-            logger.info(f"同步获取实体数量: graph_id={state.graph_id}")
+            logger.info(t("log.simulation_api.m027", state=state.graph_id))
             reader = ZepEntityReader()
             # 快速读取实体（不需要边信息，只统计数量）
             filtered_preview = reader.filter_defined_entities(
@@ -481,9 +482,9 @@ def prepare_simulation():
             # 保存实体数量到状态（供前端立即获取）
             state.entities_count = filtered_preview.filtered_count
             state.entity_types = list(filtered_preview.entity_types)
-            logger.info(f"预期实体数量: {filtered_preview.filtered_count}, 类型: {filtered_preview.entity_types}")
+            logger.info(t("log.simulation_api.m028", filtered_preview=filtered_preview.filtered_count, filtered_preview_2=filtered_preview.entity_types))
         except Exception as e:
-            logger.warning(f"同步获取实体数量失败（将在后台任务中重试）: {e}")
+            logger.warning(t("log.simulation_api.m029", e=e))
             # 失败不影响后续流程，后台任务会重新获取
         
         # 创建异步任务
@@ -592,7 +593,7 @@ def prepare_simulation():
                 )
                 
             except Exception as e:
-                logger.error(f"准备模拟失败: {str(e)}")
+                logger.error(t("log.simulation_api.m030", str=str(e)))
                 task_manager.fail_task(task_id, str(e))
                 
                 # 更新模拟状态为失败
@@ -626,7 +627,7 @@ def prepare_simulation():
         }), 404
         
     except Exception as e:
-        logger.error(f"启动准备任务失败: {str(e)}")
+        logger.error(t("log.simulation_api.m031", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -702,7 +703,7 @@ def get_prepare_status():
                 })
             return jsonify({
                 "success": False,
-                "error": "请提供 task_id 或 simulation_id"
+                "error": t("api.error.simulation.m032")
             }), 400
         
         task_manager = TaskManager()
@@ -728,7 +729,7 @@ def get_prepare_status():
             
             return jsonify({
                 "success": False,
-                "error": f"任务不存在: {task_id}"
+                "error": t("api.error.simulation.m033", task_id=task_id)
             }), 404
         
         task_dict = task.to_dict()
@@ -740,7 +741,7 @@ def get_prepare_status():
         })
         
     except Exception as e:
-        logger.error(f"查询任务状态失败: {str(e)}")
+        logger.error(t("log.simulation_api.m034", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e)
@@ -757,7 +758,7 @@ def get_simulation(simulation_id: str):
         if not state:
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": t("api.error.simulation.m035", simulation_id=simulation_id)
             }), 404
         
         result = state.to_dict()
@@ -772,7 +773,7 @@ def get_simulation(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取模拟状态失败: {str(e)}")
+        logger.error(t("log.simulation_api.m036", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -801,7 +802,7 @@ def list_simulations():
         })
         
     except Exception as e:
-        logger.error(f"列出模拟失败: {str(e)}")
+        logger.error(t("log.simulation_api.m037", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -864,7 +865,7 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
         return matching_reports[0].get("report_id")
         
     except Exception as e:
-        logger.warning(f"查找 simulation {simulation_id} 的 report 失败: {e}")
+        logger.warning(t("log.simulation_api.m038", simulation_id=simulation_id, e=e))
         return None
 
 
@@ -974,7 +975,7 @@ def get_simulation_history():
         })
         
     except Exception as e:
-        logger.error(f"获取历史模拟失败: {str(e)}")
+        logger.error(t("log.simulation_api.m039", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1012,7 +1013,7 @@ def get_simulation_profiles(simulation_id: str):
         }), 404
         
     except Exception as e:
-        logger.error(f"获取Profile失败: {str(e)}")
+        logger.error(t("log.simulation_api.m040", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1061,7 +1062,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
         if not os.path.exists(sim_dir):
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": t("api.error.simulation.m041", simulation_id=simulation_id)
             }), 404
         
         # 确定文件路径
@@ -1089,7 +1090,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
                         reader = csv.DictReader(f)
                         profiles = list(reader)
             except (json.JSONDecodeError, Exception) as e:
-                logger.warning(f"读取 profiles 文件失败（可能正在写入中）: {e}")
+                logger.warning(t("log.simulation_api.m042", e=e))
                 profiles = []
         
         # 检查是否正在生成（通过 state.json 判断）
@@ -1122,7 +1123,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"实时获取Profile失败: {str(e)}")
+        logger.error(t("log.simulation_api.m043", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1164,7 +1165,7 @@ def get_simulation_config_realtime(simulation_id: str):
         if not os.path.exists(sim_dir):
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": t("api.error.simulation.m044", simulation_id=simulation_id)
             }), 404
         
         # 配置文件路径
@@ -1184,7 +1185,7 @@ def get_simulation_config_realtime(simulation_id: str):
                 with open(config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             except (json.JSONDecodeError, Exception) as e:
-                logger.warning(f"读取 config 文件失败（可能正在写入中）: {e}")
+                logger.warning(t("log.simulation_api.m045", e=e))
                 config = None
         
         # 检查是否正在生成（通过 state.json 判断）
@@ -1242,7 +1243,7 @@ def get_simulation_config_realtime(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"实时获取Config失败: {str(e)}")
+        logger.error(t("log.simulation_api.m046", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1269,7 +1270,7 @@ def get_simulation_config(simulation_id: str):
         if not config:
             return jsonify({
                 "success": False,
-                "error": f"模拟配置不存在，请先调用 /prepare 接口"
+                "error": t("api.error.simulation.m047")
             }), 404
         
         return jsonify({
@@ -1278,7 +1279,7 @@ def get_simulation_config(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取配置失败: {str(e)}")
+        logger.error(t("log.simulation_api.m048", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1297,7 +1298,7 @@ def download_simulation_config(simulation_id: str):
         if not os.path.exists(config_path):
             return jsonify({
                 "success": False,
-                "error": "配置文件不存在，请先调用 /prepare 接口"
+                "error": t("api.error.simulation.m049")
             }), 404
         
         return send_file(
@@ -1307,7 +1308,7 @@ def download_simulation_config(simulation_id: str):
         )
         
     except Exception as e:
-        logger.error(f"下载配置失败: {str(e)}")
+        logger.error(t("log.simulation_api.m050", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1341,7 +1342,7 @@ def download_simulation_script(script_name: str):
         if script_name not in allowed_scripts:
             return jsonify({
                 "success": False,
-                "error": f"未知脚本: {script_name}，可选: {allowed_scripts}"
+                "error": t("api.error.simulation.m051", script_name=script_name, allowed_scripts=allowed_scripts)
             }), 400
         
         script_path = os.path.join(scripts_dir, script_name)
@@ -1349,7 +1350,7 @@ def download_simulation_script(script_name: str):
         if not os.path.exists(script_path):
             return jsonify({
                 "success": False,
-                "error": f"脚本文件不存在: {script_name}"
+                "error": t("api.error.simulation.m052", script_name=script_name)
             }), 404
         
         return send_file(
@@ -1359,7 +1360,7 @@ def download_simulation_script(script_name: str):
         )
         
     except Exception as e:
-        logger.error(f"下载脚本失败: {str(e)}")
+        logger.error(t("log.simulation_api.m053", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1389,7 +1390,7 @@ def generate_profiles():
         if not graph_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 graph_id"
+                "error": t("api.error.simulation.m054")
             }), 400
         
         entity_types = data.get('entity_types')
@@ -1406,7 +1407,7 @@ def generate_profiles():
         if filtered.filtered_count == 0:
             return jsonify({
                 "success": False,
-                "error": "没有找到符合条件的实体"
+                "error": t("api.error.simulation.m055")
             }), 400
         
         generator = OasisProfileGenerator()
@@ -1433,7 +1434,7 @@ def generate_profiles():
         })
         
     except Exception as e:
-        logger.error(f"生成Profile失败: {str(e)}")
+        logger.error(t("log.simulation_api.m056", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1491,7 +1492,7 @@ def start_simulation():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m057")
             }), 400
 
         platform = data.get('platform', 'parallel')
@@ -1506,18 +1507,18 @@ def start_simulation():
                 if max_rounds <= 0:
                     return jsonify({
                         "success": False,
-                        "error": "max_rounds 必须是正整数"
+                        "error": t("api.error.simulation.m058")
                     }), 400
             except (ValueError, TypeError):
                 return jsonify({
                     "success": False,
-                    "error": "max_rounds 必须是有效的整数"
+                    "error": t("api.error.simulation.m059")
                 }), 400
 
         if platform not in ['twitter', 'reddit', 'parallel']:
             return jsonify({
                 "success": False,
-                "error": f"无效的平台类型: {platform}，可选: twitter/reddit/parallel"
+                "error": t("api.error.simulation.m060", platform=platform)
             }), 400
 
         # 检查模拟是否已准备好
@@ -1527,7 +1528,7 @@ def start_simulation():
         if not state:
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": t("api.error.simulation.m061", simulation_id=simulation_id)
             }), 404
 
         force_restarted = False
@@ -1546,34 +1547,34 @@ def start_simulation():
                         # 进程确实在运行
                         if force:
                             # 强制模式：停止运行中的模拟
-                            logger.info(f"强制模式：停止运行中的模拟 {simulation_id}")
+                            logger.info(t("log.simulation_api.m062", simulation_id=simulation_id))
                             try:
                                 SimulationRunner.stop_simulation(simulation_id)
                             except Exception as e:
-                                logger.warning(f"停止模拟时出现警告: {str(e)}")
+                                logger.warning(t("log.simulation_api.m063", str=str(e)))
                         else:
                             return jsonify({
                                 "success": False,
-                                "error": f"模拟正在运行中，请先调用 /stop 接口停止，或使用 force=true 强制重新开始"
+                                "error": t("api.error.simulation.m064")
                             }), 400
 
                 # 如果是强制模式，清理运行日志
                 if force:
-                    logger.info(f"强制模式：清理模拟日志 {simulation_id}")
+                    logger.info(t("log.simulation_api.m065", simulation_id=simulation_id))
                     cleanup_result = SimulationRunner.cleanup_simulation_logs(simulation_id)
                     if not cleanup_result.get("success"):
-                        logger.warning(f"清理日志时出现警告: {cleanup_result.get('errors')}")
+                        logger.warning(t("log.simulation_api.m066", cleanup_result=cleanup_result.get('errors')))
                     force_restarted = True
 
                 # 进程不存在或已结束，重置状态为 ready
-                logger.info(f"模拟 {simulation_id} 准备工作已完成，重置状态为 ready（原状态: {state.status.value}）")
+                logger.info(t("log.simulation_api.m067", simulation_id=simulation_id, state=state.status.value))
                 state.status = SimulationStatus.READY
                 manager._save_simulation_state(state)
             else:
                 # 准备工作未完成
                 return jsonify({
                     "success": False,
-                    "error": f"模拟未准备好，当前状态: {state.status.value}，请先调用 /prepare 接口"
+                    "error": t("api.error.simulation.m068", state=state.status.value)
                 }), 400
         
         # 获取图谱ID（用于图谱记忆更新）
@@ -1590,10 +1591,10 @@ def start_simulation():
             if not graph_id:
                 return jsonify({
                     "success": False,
-                    "error": "启用图谱记忆更新需要有效的 graph_id，请确保项目已构建图谱"
+                    "error": t("api.error.simulation.m069")
                 }), 400
             
-            logger.info(f"启用图谱记忆更新: simulation_id={simulation_id}, graph_id={graph_id}")
+            logger.info(t("log.simulation_api.m070", simulation_id=simulation_id, graph_id=graph_id))
         
         # 启动模拟
         run_state = SimulationRunner.start_simulation(
@@ -1628,7 +1629,7 @@ def start_simulation():
         }), 400
         
     except Exception as e:
-        logger.error(f"启动模拟失败: {str(e)}")
+        logger.error(t("log.simulation_api.m071", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1663,7 +1664,7 @@ def stop_simulation():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m072")
             }), 400
         
         run_state = SimulationRunner.stop_simulation(simulation_id)
@@ -1687,7 +1688,7 @@ def stop_simulation():
         }), 400
         
     except Exception as e:
-        logger.error(f"停止模拟失败: {str(e)}")
+        logger.error(t("log.simulation_api.m073", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1747,7 +1748,7 @@ def get_run_status(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取运行状态失败: {str(e)}")
+        logger.error(t("log.simulation_api.m074", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1848,7 +1849,7 @@ def get_run_status_detail(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取详细状态失败: {str(e)}")
+        logger.error(t("log.simulation_api.m075", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1902,7 +1903,7 @@ def get_simulation_actions(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取动作历史失败: {str(e)}")
+        logger.error(t("log.simulation_api.m076", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1942,7 +1943,7 @@ def get_simulation_timeline(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取时间线失败: {str(e)}")
+        logger.error(t("log.simulation_api.m077", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1969,7 +1970,7 @@ def get_agent_stats(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取Agent统计失败: {str(e)}")
+        logger.error(t("log.simulation_api.m078", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2049,7 +2050,7 @@ def get_simulation_posts(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取帖子失败: {str(e)}")
+        logger.error(t("log.simulation_api.m079", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2124,7 +2125,7 @@ def get_simulation_comments(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取评论失败: {str(e)}")
+        logger.error(t("log.simulation_api.m080", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2197,33 +2198,33 @@ def interview_agent():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m081")
             }), 400
         
         if agent_id is None:
             return jsonify({
                 "success": False,
-                "error": "请提供 agent_id"
+                "error": t("api.error.simulation.m082")
             }), 400
         
         if not prompt:
             return jsonify({
                 "success": False,
-                "error": "请提供 prompt（采访问题）"
+                "error": t("api.error.simulation.m083")
             }), 400
         
         # 验证platform参数
         if platform and platform not in ("twitter", "reddit"):
             return jsonify({
                 "success": False,
-                "error": "platform 参数只能是 'twitter' 或 'reddit'"
+                "error": t("api.error.simulation.m084")
             }), 400
         
         # 检查环境状态
         if not SimulationRunner.check_env_alive(simulation_id):
             return jsonify({
                 "success": False,
-                "error": "模拟环境未运行或已关闭。请确保模拟已完成并进入等待命令模式。"
+                "error": t("api.error.simulation.m085")
             }), 400
         
         # 优化prompt，添加前缀避免Agent调用工具
@@ -2251,11 +2252,11 @@ def interview_agent():
     except TimeoutError as e:
         return jsonify({
             "success": False,
-            "error": f"等待Interview响应超时: {str(e)}"
+            "error": t("api.error.simulation.m086", str=str(e))
         }), 504
         
     except Exception as e:
-        logger.error(f"Interview失败: {str(e)}")
+        logger.error(t("log.simulation_api.m087", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2318,20 +2319,20 @@ def interview_agents_batch():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m088")
             }), 400
 
         if not interviews or not isinstance(interviews, list):
             return jsonify({
                 "success": False,
-                "error": "请提供 interviews（采访列表）"
+                "error": t("api.error.simulation.m089")
             }), 400
 
         # 验证platform参数
         if platform and platform not in ("twitter", "reddit"):
             return jsonify({
                 "success": False,
-                "error": "platform 参数只能是 'twitter' 或 'reddit'"
+                "error": t("api.error.simulation.m090")
             }), 400
 
         # 验证每个采访项
@@ -2339,26 +2340,26 @@ def interview_agents_batch():
             if 'agent_id' not in interview:
                 return jsonify({
                     "success": False,
-                    "error": f"采访列表第{i+1}项缺少 agent_id"
+                    "error": t("api.error.simulation.m091", i=i + 1)
                 }), 400
             if 'prompt' not in interview:
                 return jsonify({
                     "success": False,
-                    "error": f"采访列表第{i+1}项缺少 prompt"
+                    "error": t("api.error.simulation.m092", i=i + 1)
                 }), 400
             # 验证每项的platform（如果有）
             item_platform = interview.get('platform')
             if item_platform and item_platform not in ("twitter", "reddit"):
                 return jsonify({
                     "success": False,
-                    "error": f"采访列表第{i+1}项的platform只能是 'twitter' 或 'reddit'"
+                    "error": t("api.error.simulation.m093", i=i + 1)
                 }), 400
 
         # 检查环境状态
         if not SimulationRunner.check_env_alive(simulation_id):
             return jsonify({
                 "success": False,
-                "error": "模拟环境未运行或已关闭。请确保模拟已完成并进入等待命令模式。"
+                "error": t("api.error.simulation.m094")
             }), 400
 
         # 优化每个采访项的prompt，添加前缀避免Agent调用工具
@@ -2389,11 +2390,11 @@ def interview_agents_batch():
     except TimeoutError as e:
         return jsonify({
             "success": False,
-            "error": f"等待批量Interview响应超时: {str(e)}"
+            "error": t("api.error.simulation.m095", str=str(e))
         }), 504
 
     except Exception as e:
-        logger.error(f"批量Interview失败: {str(e)}")
+        logger.error(t("log.simulation_api.m096", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2445,27 +2446,27 @@ def interview_all_agents():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m097")
             }), 400
 
         if not prompt:
             return jsonify({
                 "success": False,
-                "error": "请提供 prompt（采访问题）"
+                "error": t("api.error.simulation.m098")
             }), 400
 
         # 验证platform参数
         if platform and platform not in ("twitter", "reddit"):
             return jsonify({
                 "success": False,
-                "error": "platform 参数只能是 'twitter' 或 'reddit'"
+                "error": t("api.error.simulation.m099")
             }), 400
 
         # 检查环境状态
         if not SimulationRunner.check_env_alive(simulation_id):
             return jsonify({
                 "success": False,
-                "error": "模拟环境未运行或已关闭。请确保模拟已完成并进入等待命令模式。"
+                "error": t("api.error.simulation.m100")
             }), 400
 
         # 优化prompt，添加前缀避免Agent调用工具
@@ -2492,11 +2493,11 @@ def interview_all_agents():
     except TimeoutError as e:
         return jsonify({
             "success": False,
-            "error": f"等待全局Interview响应超时: {str(e)}"
+            "error": t("api.error.simulation.m101", str=str(e))
         }), 504
 
     except Exception as e:
-        logger.error(f"全局Interview失败: {str(e)}")
+        logger.error(t("log.simulation_api.m102", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2549,7 +2550,7 @@ def get_interview_history():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m103")
             }), 400
 
         history = SimulationRunner.get_interview_history(
@@ -2568,7 +2569,7 @@ def get_interview_history():
         })
 
     except Exception as e:
-        logger.error(f"获取Interview历史失败: {str(e)}")
+        logger.error(t("log.simulation_api.m104", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2608,7 +2609,7 @@ def get_env_status():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m105")
             }), 400
 
         env_alive = SimulationRunner.check_env_alive(simulation_id)
@@ -2633,7 +2634,7 @@ def get_env_status():
         })
 
     except Exception as e:
-        logger.error(f"获取环境状态失败: {str(e)}")
+        logger.error(t("log.simulation_api.m106", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -2676,7 +2677,7 @@ def close_simulation_env():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": t("api.error.simulation.m107")
             }), 400
         
         result = SimulationRunner.close_simulation_env(
@@ -2703,7 +2704,7 @@ def close_simulation_env():
         }), 400
         
     except Exception as e:
-        logger.error(f"关闭环境失败: {str(e)}")
+        logger.error(t("log.simulation_api.m108", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),

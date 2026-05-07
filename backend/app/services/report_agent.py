@@ -1319,7 +1319,7 @@ class ReportAgent:
                 # 最后一次迭代也返回 None，跳出循环进入强制收尾
                 break
 
-            logger.debug(f"LLM响应: {response[:200]}...")
+            logger.debug(t("log.report_agent.m001", response=response[:200]))
 
             # 解析一次，复用结果
             tool_calls = self._parse_tool_calls(response)

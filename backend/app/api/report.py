@@ -172,7 +172,7 @@ def generate_report():
                     task_manager.fail_task(task_id, report.error or t('api.reportGenerateFailed'))
                 
             except Exception as e:
-                logger.error(f"报告生成失败: {str(e)}")
+                logger.error(t("log.report_api.m001", str=str(e)))
                 task_manager.fail_task(task_id, str(e))
         
         # 启动后台线程
@@ -192,7 +192,7 @@ def generate_report():
         })
         
     except Exception as e:
-        logger.error(f"启动报告生成任务失败: {str(e)}")
+        logger.error(t("log.report_api.m002", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -265,7 +265,7 @@ def get_generate_status():
         })
         
     except Exception as e:
-        logger.error(f"查询任务状态失败: {str(e)}")
+        logger.error(t("log.report_api.m003", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e)
@@ -308,7 +308,7 @@ def get_report(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取报告失败: {str(e)}")
+        logger.error(t("log.report_api.m004", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -347,7 +347,7 @@ def get_report_by_simulation(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取报告失败: {str(e)}")
+        logger.error(t("log.report_api.m005", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -387,7 +387,7 @@ def list_reports():
         })
         
     except Exception as e:
-        logger.error(f"列出报告失败: {str(e)}")
+        logger.error(t("log.report_api.m006", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -433,7 +433,7 @@ def download_report(report_id: str):
         )
         
     except Exception as e:
-        logger.error(f"下载报告失败: {str(e)}")
+        logger.error(t("log.report_api.m007", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -459,7 +459,7 @@ def delete_report(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"删除报告失败: {str(e)}")
+        logger.error(t("log.report_api.m008", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -556,7 +556,7 @@ def chat_with_report_agent():
         })
         
     except Exception as e:
-        logger.error(f"对话失败: {str(e)}")
+        logger.error(t("log.report_api.m009", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -599,7 +599,7 @@ def get_report_progress(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取报告进度失败: {str(e)}")
+        logger.error(t("log.report_api.m010", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -650,7 +650,7 @@ def get_report_sections(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取章节列表失败: {str(e)}")
+        logger.error(t("log.report_api.m011", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -694,7 +694,7 @@ def get_single_section(report_id: str, section_index: int):
         })
         
     except Exception as e:
-        logger.error(f"获取章节内容失败: {str(e)}")
+        logger.error(t("log.report_api.m012", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -745,7 +745,7 @@ def check_report_status(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"检查报告状态失败: {str(e)}")
+        logger.error(t("log.report_api.m013", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -806,7 +806,7 @@ def get_agent_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取Agent日志失败: {str(e)}")
+        logger.error(t("log.report_api.m014", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -840,7 +840,7 @@ def stream_agent_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取Agent日志失败: {str(e)}")
+        logger.error(t("log.report_api.m015", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -888,7 +888,7 @@ def get_console_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取控制台日志失败: {str(e)}")
+        logger.error(t("log.report_api.m016", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -922,7 +922,7 @@ def stream_console_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取控制台日志失败: {str(e)}")
+        logger.error(t("log.report_api.m017", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -972,7 +972,7 @@ def search_graph_tool():
         })
         
     except Exception as e:
-        logger.error(f"图谱搜索失败: {str(e)}")
+        logger.error(t("log.report_api.m018", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),
@@ -1012,7 +1012,7 @@ def get_graph_statistics_tool():
         })
         
     except Exception as e:
-        logger.error(f"获取图谱统计失败: {str(e)}")
+        logger.error(t("log.report_api.m019", str=str(e)))
         return jsonify({
             "success": False,
             "error": str(e),

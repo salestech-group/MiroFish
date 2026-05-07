@@ -16,7 +16,7 @@ from .graphiti_adapter import GraphitiAdapter
 
 from ..config import Config
 from ..utils.logger import get_logger
-from ..utils.locale import get_locale, set_locale
+from ..utils.locale import get_locale, set_locale, t
 
 logger = get_logger('mirofish.zep_graph_memory_updater')
 
@@ -261,7 +261,7 @@ class ZepGraphMemoryUpdater:
         self._failed_count = 0      # 发送失败的批次数
         self._skipped_count = 0     # 被过滤跳过的活动数（DO_NOTHING）
         
-        logger.info(f"ZepGraphMemoryUpdater 初始化完成: graph_id={graph_id}, batch_size={self.BATCH_SIZE}")
+        logger.info(t("log.zep_graph_memory_updater.m001", graph_id=graph_id, self=self.BATCH_SIZE))
     
     def _get_platform_display_name(self, platform: str) -> str:
         """获取平台的显示名称"""
@@ -283,7 +283,7 @@ class ZepGraphMemoryUpdater:
             name=f"ZepMemoryUpdater-{self.graph_id[:8]}"
         )
         self._worker_thread.start()
-        logger.info(f"ZepGraphMemoryUpdater 已启动: graph_id={self.graph_id}")
+        logger.info(t("log.zep_graph_memory_updater.m002", self=self.graph_id))
     
     def stop(self):
         """停止后台工作线程"""
@@ -295,12 +295,7 @@ class ZepGraphMemoryUpdater:
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=10)
         
-        logger.info(f"ZepGraphMemoryUpdater 已停止: graph_id={self.graph_id}, "
-                   f"total_activities={self._total_activities}, "
-                   f"batches_sent={self._total_sent}, "
-                   f"items_sent={self._total_items_sent}, "
-                   f"failed={self._failed_count}, "
-                   f"skipped={self._skipped_count}")
+        logger.info(t("log.zep_graph_memory_updater.m003", self=self.graph_id, self_2=self._total_activities, self_3=self._total_sent, self_4=self._total_items_sent, self_5=self._failed_count, self_6=self._skipped_count))
     
     def add_activity(self, activity: AgentActivity):
         """
@@ -330,7 +325,7 @@ class ZepGraphMemoryUpdater:
         
         self._activity_queue.put(activity)
         self._total_activities += 1
-        logger.debug(f"添加活动到Zep队列: {activity.agent_name} - {activity.action_type}")
+        logger.debug(t("log.zep_graph_memory_updater.m004", activity=activity.agent_name, activity_2=activity.action_type))
     
     def add_activity_from_dict(self, data: Dict[str, Any], platform: str):
         """
@@ -385,7 +380,7 @@ class ZepGraphMemoryUpdater:
                     pass
                     
             except Exception as e:
-                logger.error(f"工作循环异常: {e}")
+                logger.error(t("log.zep_graph_memory_updater.m005", e=e))
                 time.sleep(1)
     
     def _send_batch_activities(self, activities: List[AgentActivity], platform: str):
@@ -415,16 +410,16 @@ class ZepGraphMemoryUpdater:
                 self._total_sent += 1
                 self._total_items_sent += len(activities)
                 display_name = self._get_platform_display_name(platform)
-                logger.info(f"成功批量发送 {len(activities)} 条{display_name}活动到图谱 {self.graph_id}")
-                logger.debug(f"批量内容预览: {combined_text[:200]}...")
+                logger.info(t("log.zep_graph_memory_updater.m006", len=len(activities), display_name=display_name, self=self.graph_id))
+                logger.debug(t("log.zep_graph_memory_updater.m007", combined_text=combined_text[:200]))
                 return
                 
             except Exception as e:
                 if attempt < self.MAX_RETRIES - 1:
-                    logger.warning(f"批量发送到Zep失败 (尝试 {attempt + 1}/{self.MAX_RETRIES}): {e}")
+                    logger.warning(t("log.zep_graph_memory_updater.m008", attempt=attempt + 1, self=self.MAX_RETRIES, e=e))
                     time.sleep(self.RETRY_DELAY * (attempt + 1))
                 else:
-                    logger.error(f"批量发送到Zep失败，已重试{self.MAX_RETRIES}次: {e}")
+                    logger.error(t("log.zep_graph_memory_updater.m009", self=self.MAX_RETRIES, e=e))
                     self._failed_count += 1
     
     def _flush_remaining(self):
@@ -446,7 +441,7 @@ class ZepGraphMemoryUpdater:
             for platform, buffer in self._platform_buffers.items():
                 if buffer:
                     display_name = self._get_platform_display_name(platform)
-                    logger.info(f"发送{display_name}平台剩余的 {len(buffer)} 条活动")
+                    logger.info(t("log.zep_graph_memory_updater.m010", display_name=display_name, len=len(buffer)))
                     self._send_batch_activities(buffer, platform)
             # 清空所有缓冲区
             for platform in self._platform_buffers:
@@ -502,7 +497,7 @@ class ZepGraphMemoryManager:
             updater.start()
             cls._updaters[simulation_id] = updater
             
-            logger.info(f"创建图谱记忆更新器: simulation_id={simulation_id}, graph_id={graph_id}")
+            logger.info(t("log.zep_graph_memory_updater.m011", simulation_id=simulation_id, graph_id=graph_id))
             return updater
     
     @classmethod
@@ -517,7 +512,7 @@ class ZepGraphMemoryManager:
             if simulation_id in cls._updaters:
                 cls._updaters[simulation_id].stop()
                 del cls._updaters[simulation_id]
-                logger.info(f"已停止图谱记忆更新器: simulation_id={simulation_id}")
+                logger.info(t("log.zep_graph_memory_updater.m012", simulation_id=simulation_id))
     
     # 防止 stop_all 重复调用的标志
     _stop_all_done = False
@@ -536,9 +531,9 @@ class ZepGraphMemoryManager:
                     try:
                         updater.stop()
                     except Exception as e:
-                        logger.error(f"停止更新器失败: simulation_id={simulation_id}, error={e}")
+                        logger.error(t("log.zep_graph_memory_updater.m013", simulation_id=simulation_id, e=e))
                 cls._updaters.clear()
-            logger.info("已停止所有图谱记忆更新器")
+            logger.info(t("log.zep_graph_memory_updater.m014"))
     
     @classmethod
     def get_all_stats(cls) -> Dict[str, Dict[str, Any]]:

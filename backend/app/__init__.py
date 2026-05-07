@@ -14,6 +14,7 @@ from flask_cors import CORS
 
 from .config import Config
 from .utils.logger import setup_logger, get_logger
+from .utils.locale import t
 
 
 def create_app(config_class=Config):
@@ -36,7 +37,7 @@ def create_app(config_class=Config):
     
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
+        logger.info(t("log.bootstrap.m001"))
         logger.info("=" * 50)
     
     # 启用CORS
@@ -46,20 +47,20 @@ def create_app(config_class=Config):
     from .services.simulation_runner import SimulationRunner
     SimulationRunner.register_cleanup()
     if should_log_startup:
-        logger.info("已注册模拟进程清理函数")
+        logger.info(t("log.bootstrap.m002"))
     
     # 请求日志中间件
     @app.before_request
     def log_request():
         logger = get_logger('mirofish.request')
-        logger.debug(f"请求: {request.method} {request.path}")
+        logger.debug(t("log.bootstrap.m003", request=request.method, request_2=request.path))
         if request.content_type and 'json' in request.content_type:
-            logger.debug(f"请求体: {request.get_json(silent=True)}")
+            logger.debug(t("log.bootstrap.m004", request=request.get_json(silent=True)))
     
     @app.after_request
     def log_response(response):
         logger = get_logger('mirofish.request')
-        logger.debug(f"响应: {response.status_code}")
+        logger.debug(t("log.bootstrap.m005", response=response.status_code))
         return response
     
     # 注册蓝图
@@ -78,7 +79,7 @@ def create_app(config_class=Config):
         _recover_stuck_projects()
 
     if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+        logger.info(t("log.bootstrap.m006"))
 
     return app
 
