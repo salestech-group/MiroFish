@@ -1,6 +1,7 @@
 /**
- * 临时存储待上传的文件和需求
- * 用于首页点击启动引擎后立即跳转，在Process页面再进行API调用
+ * Holds files and the simulation requirement between Home and Process so that
+ * clicking "Start Engine" can navigate immediately and defer the API call to
+ * the Process view.
  */
 import { reactive } from 'vue'
 
