@@ -162,6 +162,25 @@ NEO4J_PASSWORD=your_neo4j_password
 
 # Embedding model (uncomment if using a non-OpenAI provider, e.g. Gemini)
 # EMBEDDING_MODEL=gemini-embedding-001
+
+# Embedding model via local Ollama (free, no API key, OpenAI-compatible endpoint).
+# Pre-requisite: `ollama pull mxbai-embed-large` (1024-dim, matches Graphiti).
+# In Docker, host.docker.internal:11434 reaches the host daemon; in host mode
+# (`npm run dev`) substitute http://localhost:11434/v1.
+# EMBEDDING_BASE_URL=http://host.docker.internal:11434/v1
+# EMBEDDING_API_KEY=ollama
+# EMBEDDING_MODEL=mxbai-embed-large
+```
+
+**Embedder smoke test (recommended before the first graph build):**
+
+```bash
+curl -s "$EMBEDDING_BASE_URL/embeddings" \
+  -H "Authorization: Bearer $EMBEDDING_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"'"$EMBEDDING_MODEL"'","input":"ping"}' \
+  | jq '.data[0].embedding | length'
+# Expected output: 1024
 ```
 
 **Optional — Accelerated LLM Configuration:**
