@@ -772,7 +772,9 @@
       "m020": "Exception while processing entity {entity}: {str}",
       "m021": "Saved {len} Twitter profiles to {file_path} (OASIS CSV format)",
       "m022": "Saved {len} Reddit profiles to {file_path} (JSON format with user_id field)",
-      "m023": "save_profiles_to_json is deprecated; use save_profiles instead"
+      "m023": "save_profiles_to_json is deprecated; use save_profiles instead",
+      "m024": "Starting agent profile generation — {total} entities, parallelism: {parallel_count}",
+      "m025": "Profile generation complete — generated {count} agents"
     },
     "simulation_config": {
       "m001": "Smart simulation config generation started: simulation_id={simulation_id}, entities={len}",
@@ -920,7 +922,10 @@
       "m017": "=== Graph build started ===",
       "m018": "Configuration error: {errors}",
       "m019": "Request parameters: project_id={project_id}",
-      "m026": "Created graph build task: task_id={task_id}, project_id={project_id}"
+      "m026": "Created graph build task: task_id={task_id}, project_id={project_id}",
+      "m027": "[{task_id}] Starting graph build...",
+      "m028": "[{task_id}] Graph build completed: graph_id={graph_id}, nodes={node_count}, edges={edge_count}",
+      "m029": "[{task_id}] Graph build failed: {e}"
     },
     "bootstrap": {
       "m001": "MiroFish backend starting...",
@@ -929,6 +934,12 @@
       "m004": "Request body: {request}",
       "m005": "Response: {response}",
       "m006": "MiroFish backend started"
+    },
+    "retry": {
+      "m001": "Function {func_name} still failing after {max_retries} retries: {e}",
+      "m002": "Async function {func_name} still failing after {max_retries} retries: {e}",
+      "m003": "API call still failing after {max_retries} retries: {e}",
+      "m004": "Failed processing item #{index}: {e}"
     }
   },
   "report": {
