@@ -1,0 +1,23 @@
+{
+  "feature_name": "i18n-oasis-profile-generator-prompts",
+  "created_at": "2026-05-08T05:26:06Z",
+  "updated_at": "2026-05-08T05:30:00Z",
+  "language": "en",
+  "phase": "tasks-generated",
+  "ticket": 3,
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}
