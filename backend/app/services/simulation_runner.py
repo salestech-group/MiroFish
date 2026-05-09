@@ -1,6 +1,7 @@
 """
-OASIS模拟运行器
-在后台运行模拟并记录每个Agent的动作，支持实时状态监控
+OASIS simulation runner.
+
+Runs the simulation in the background, records each agent's actions, and supports real-time status monitoring.
 """
 
 import os
@@ -26,15 +27,14 @@ from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
 logger = get_logger('mirofish.simulation_runner')
 
-# 标记是否已注册清理函数
+# Tracks whether the cleanup handler has been registered (guards against double registration in Flask reloader).
 _cleanup_registered = False
 
-# 平台检测
 IS_WINDOWS = sys.platform == 'win32'
 
 
 class RunnerStatus(str, Enum):
-    """运行器状态"""
+    """Runner lifecycle states."""
     IDLE = "idle"
     STARTING = "starting"
     RUNNING = "running"
@@ -47,7 +47,7 @@ class RunnerStatus(str, Enum):
 
 @dataclass
 class AgentAction:
-    """Agent动作记录"""
+    """A single recorded agent action."""
     round_num: int
     timestamp: str
     platform: str  # twitter / reddit
@@ -74,7 +74,7 @@ class AgentAction:
 
 @dataclass
 class RoundSummary:
-    """每轮摘要"""
+    """Per-round summary statistics."""
     round_num: int
     start_time: str
     end_time: Optional[str] = None
@@ -100,52 +100,47 @@ class RoundSummary:
 
 @dataclass
 class SimulationRunState:
-    """模拟运行状态（实时）"""
+    """Live runtime state for a simulation."""
     simulation_id: str
     runner_status: RunnerStatus = RunnerStatus.IDLE
-    
-    # 进度信息
+
     current_round: int = 0
     total_rounds: int = 0
     simulated_hours: int = 0
     total_simulation_hours: int = 0
-    
-    # 各平台独立轮次和模拟时间（用于双平台并行显示）
+
+    # Per-platform round and simulated-time counters (used when both platforms run in parallel).
     twitter_current_round: int = 0
     reddit_current_round: int = 0
     twitter_simulated_hours: int = 0
     reddit_simulated_hours: int = 0
-    
-    # 平台状态
+
     twitter_running: bool = False
     reddit_running: bool = False
     twitter_actions_count: int = 0
     reddit_actions_count: int = 0
-    
-    # 平台完成状态（通过检测 actions.jsonl 中的 simulation_end 事件）
+
+    # Per-platform completion flags, set when a simulation_end event is observed in actions.jsonl.
     twitter_completed: bool = False
     reddit_completed: bool = False
-    
-    # 每轮摘要
+
     rounds: List[RoundSummary] = field(default_factory=list)
-    
-    # 最近动作（用于前端实时展示）
+
+    # Recent actions buffer; surfaced to the frontend for the live feed.
     recent_actions: List[AgentAction] = field(default_factory=list)
     max_recent_actions: int = 50
-    
-    # 时间戳
+
     started_at: Optional[str] = None
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     completed_at: Optional[str] = None
-    
-    # 错误信息
+
     error: Optional[str] = None
-    
-    # 进程ID（用于停止）
+
+    # Main subprocess PID — captured so the process can later be stopped.
     process_pid: Optional[int] = None
-    
+
     def add_action(self, action: AgentAction):
-        """添加动作到最近动作列表"""
+        """Prepend an action to the recent-actions buffer and update counters."""
         self.recent_actions.insert(0, action)
         if len(self.recent_actions) > self.max_recent_actions:
             self.recent_actions = self.recent_actions[:self.max_recent_actions]
@@ -166,7 +161,7 @@ class SimulationRunState:
             "simulated_hours": self.simulated_hours,
             "total_simulation_hours": self.total_simulation_hours,
             "progress_percent": round(self.current_round / max(self.total_rounds, 1) * 100, 1),
-            # 各平台独立轮次和时间
+            # Per-platform round and simulated-time counters.
             "twitter_current_round": self.twitter_current_round,
             "reddit_current_round": self.reddit_current_round,
             "twitter_simulated_hours": self.twitter_simulated_hours,
@@ -186,7 +181,7 @@ class SimulationRunState:
         }
     
     def to_detail_dict(self) -> Dict[str, Any]:
-        """包含最近动作的详细信息"""
+        """Return the dict form of the state including recent actions."""
         result = self.to_dict()
         result["recent_actions"] = [a.to_dict() for a in self.recent_actions]
         result["rounds_count"] = len(self.rounds)
@@ -195,53 +190,50 @@ class SimulationRunState:
 
 class SimulationRunner:
     """
-    模拟运行器
-    
-    负责：
-    1. 在后台进程中运行OASIS模拟
-    2. 解析运行日志，记录每个Agent的动作
-    3. 提供实时状态查询接口
-    4. 支持暂停/停止/恢复操作
+    Simulation runner.
+
+    Responsibilities:
+    1. Run the OASIS simulation in a background subprocess.
+    2. Parse the run logs and record each agent's actions.
+    3. Provide real-time status query interfaces.
+    4. Support pause/stop/resume operations.
     """
-    
-    # 运行状态存储目录
+
     RUN_STATE_DIR = os.path.join(
         os.path.dirname(__file__),
         '../../uploads/simulations'
     )
-    
-    # 脚本目录
+
     SCRIPTS_DIR = os.path.join(
         os.path.dirname(__file__),
         '../../scripts'
     )
-    
-    # 内存中的运行状态
+
+    # In-memory caches of runtime state, processes, queues, monitor threads, and log file handles.
     _run_states: Dict[str, SimulationRunState] = {}
     _processes: Dict[str, subprocess.Popen] = {}
     _action_queues: Dict[str, Queue] = {}
     _monitor_threads: Dict[str, threading.Thread] = {}
-    _stdout_files: Dict[str, Any] = {}  # 存储 stdout 文件句柄
-    _stderr_files: Dict[str, Any] = {}  # 存储 stderr 文件句柄
-    
-    # 图谱记忆更新配置
-    _graph_memory_enabled: Dict[str, bool] = {}  # simulation_id -> enabled
-    
+    _stdout_files: Dict[str, Any] = {}
+    _stderr_files: Dict[str, Any] = {}
+
+    # Graph-memory-update flag per simulation_id.
+    _graph_memory_enabled: Dict[str, bool] = {}
+
     @classmethod
     def get_run_state(cls, simulation_id: str) -> Optional[SimulationRunState]:
-        """获取运行状态"""
+        """Return the cached run state, falling back to disk if not loaded yet."""
         if simulation_id in cls._run_states:
             return cls._run_states[simulation_id]
-        
-        # 尝试从文件加载
+
         state = cls._load_run_state(simulation_id)
         if state:
             cls._run_states[simulation_id] = state
         return state
-    
+
     @classmethod
     def _load_run_state(cls, simulation_id: str) -> Optional[SimulationRunState]:
-        """从文件加载运行状态"""
+        """Load run state from the on-disk JSON snapshot."""
         state_file = os.path.join(cls.RUN_STATE_DIR, simulation_id, "run_state.json")
         if not os.path.exists(state_file):
             return None
@@ -257,7 +249,7 @@ class SimulationRunner:
                 total_rounds=data.get("total_rounds", 0),
                 simulated_hours=data.get("simulated_hours", 0),
                 total_simulation_hours=data.get("total_simulation_hours", 0),
-                # 各平台独立轮次和时间
+                # Per-platform round and simulated-time counters.
                 twitter_current_round=data.get("twitter_current_round", 0),
                 reddit_current_round=data.get("reddit_current_round", 0),
                 twitter_simulated_hours=data.get("twitter_simulated_hours", 0),
@@ -275,7 +267,7 @@ class SimulationRunner:
                 process_pid=data.get("process_pid"),
             )
             
-            # 加载最近动作
+            # Restore the recent-actions buffer.
             actions_data = data.get("recent_actions", [])
             for a in actions_data:
                 state.recent_actions.append(AgentAction(
@@ -297,7 +289,7 @@ class SimulationRunner:
     
     @classmethod
     def _save_run_state(cls, state: SimulationRunState):
-        """保存运行状态到文件"""
+        """Persist the run state to its JSON snapshot file."""
         sim_dir = os.path.join(cls.RUN_STATE_DIR, state.simulation_id)
         os.makedirs(sim_dir, exist_ok=True)
         state_file = os.path.join(sim_dir, "run_state.json")
@@ -314,29 +306,29 @@ class SimulationRunner:
         cls,
         simulation_id: str,
         platform: str = "parallel",  # twitter / reddit / parallel
-        max_rounds: int = None,  # 最大模拟轮数（可选，用于截断过长的模拟）
-        enable_graph_memory_update: bool = False,  # 是否将活动更新到Zep图谱
-        graph_id: str = None  # Zep图谱ID（启用图谱更新时必需）
+        max_rounds: int = None,  # Optional cap on simulation rounds (truncates overly long runs).
+        enable_graph_memory_update: bool = False,  # Whether to push activity into the Zep graph.
+        graph_id: str = None  # Zep graph ID (required when graph-memory updates are enabled).
     ) -> SimulationRunState:
         """
-        启动模拟
-        
+        Start the simulation.
+
         Args:
-            simulation_id: 模拟ID
-            platform: 运行平台 (twitter/reddit/parallel)
-            max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
-            enable_graph_memory_update: 是否将Agent活动动态更新到Zep图谱
-            graph_id: Zep图谱ID（启用图谱更新时必需）
-            
+            simulation_id: Simulation ID.
+            platform: Platform to run (twitter/reddit/parallel).
+            max_rounds: Optional cap on simulation rounds (truncates overly long runs).
+            enable_graph_memory_update: Whether to push agent activity to the Zep graph in real time.
+            graph_id: Zep graph ID (required when graph-memory updates are enabled).
+
         Returns:
             SimulationRunState
         """
-        # 检查是否已在运行
+        # Refuse to start a duplicate run for the same simulation_id.
         existing = cls.get_run_state(simulation_id)
         if existing and existing.runner_status in [RunnerStatus.RUNNING, RunnerStatus.STARTING]:
             raise ValueError(f"模拟已在运行中: {simulation_id}")
         
-        # 加载模拟配置
+        # Load the simulation configuration written during preparation.
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         config_path = os.path.join(sim_dir, "simulation_config.json")
         
@@ -346,13 +338,13 @@ class SimulationRunner:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
-        # 初始化运行状态
+        # Compute total rounds from time-window settings.
         time_config = config.get("time_config", {})
         total_hours = time_config.get("total_simulation_hours", 72)
         minutes_per_round = time_config.get("minutes_per_round", 30)
         total_rounds = int(total_hours * 60 / minutes_per_round)
         
-        # 如果指定了最大轮数，则截断
+        # If a cap was provided, clamp total_rounds.
         if max_rounds is not None and max_rounds > 0:
             original_rounds = total_rounds
             total_rounds = min(total_rounds, max_rounds)
@@ -369,7 +361,7 @@ class SimulationRunner:
         
         cls._save_run_state(state)
         
-        # 如果启用图谱记忆更新，创建更新器
+        # Spin up a graph-memory updater if requested.
         if enable_graph_memory_update:
             if not graph_id:
                 raise ValueError("启用图谱记忆更新时必须提供 graph_id")
@@ -384,7 +376,7 @@ class SimulationRunner:
         else:
             cls._graph_memory_enabled[simulation_id] = False
         
-        # 确定运行哪个脚本（脚本位于 backend/scripts/ 目录）
+        # Pick the entry script (lives in backend/scripts/) based on the requested platform.
         if platform == "twitter":
             script_name = "run_twitter_simulation.py"
             state.twitter_running = True
@@ -401,55 +393,52 @@ class SimulationRunner:
         if not os.path.exists(script_path):
             raise ValueError(f"脚本不存在: {script_path}")
         
-        # 创建动作队列
         action_queue = Queue()
         cls._action_queues[simulation_id] = action_queue
-        
-        # 启动模拟进程
+
         try:
-            # 构建运行命令，使用完整路径
-            # 新的日志结构：
-            #   twitter/actions.jsonl - Twitter 动作日志
-            #   reddit/actions.jsonl  - Reddit 动作日志
-            #   simulation.log        - 主进程日志
-            
+            # Log layout written by the subprocess:
+            #   twitter/actions.jsonl - Twitter action log
+            #   reddit/actions.jsonl  - Reddit action log
+            #   simulation.log        - main-process log
+
             cmd = [
-                sys.executable,  # Python解释器
+                sys.executable,
                 script_path,
-                "--config", config_path,  # 使用完整配置文件路径
+                "--config", config_path,
             ]
-            
-            # 如果指定了最大轮数，添加到命令行参数
+
             if max_rounds is not None and max_rounds > 0:
                 cmd.extend(["--max-rounds", str(max_rounds)])
-            
-            # 创建主日志文件，避免 stdout/stderr 管道缓冲区满导致进程阻塞
+
+            # Redirect stdout/stderr to a file so a full pipe buffer cannot block the subprocess.
             main_log_path = os.path.join(sim_dir, "simulation.log")
             main_log_file = open(main_log_path, 'w', encoding='utf-8')
-            
-            # 设置子进程环境变量，确保 Windows 上使用 UTF-8 编码
-            # 这可以修复第三方库（如 OASIS）读取文件时未指定编码的问题
+
+            # Force UTF-8 in the child so third-party libs (e.g. OASIS) that open files without an
+            # explicit encoding work correctly on Windows.
             env = os.environ.copy()
-            env['PYTHONUTF8'] = '1'  # Python 3.7+ 支持，让所有 open() 默认使用 UTF-8
-            env['PYTHONIOENCODING'] = 'utf-8'  # 确保 stdout/stderr 使用 UTF-8
-            
-            # 设置工作目录为模拟目录（数据库等文件会生成在此）
-            # 使用 start_new_session=True 创建新的进程组，确保可以通过 os.killpg 终止所有子进程
+            env['PYTHONUTF8'] = '1'
+            env['PYTHONIOENCODING'] = 'utf-8'
+
+            # cwd is the simulation directory so generated artifacts (databases, etc.) land there.
+            # start_new_session=True creates a fresh process group so os.killpg can terminate the
+            # entire tree on shutdown.
             process = subprocess.Popen(
                 cmd,
                 cwd=sim_dir,
                 stdout=main_log_file,
-                stderr=subprocess.STDOUT,  # stderr 也写入同一个文件
+                stderr=subprocess.STDOUT,
                 text=True,
-                encoding='utf-8',  # 显式指定编码
+                encoding='utf-8',
                 bufsize=1,
-                env=env,  # 传递带有 UTF-8 设置的环境变量
-                start_new_session=True,  # 创建新进程组，确保服务器关闭时能终止所有相关进程
+                env=env,
+                start_new_session=True,
             )
-            
-            # 保存文件句柄以便后续关闭
+
+            # Retain the log file handle so it can be closed after the subprocess exits.
             cls._stdout_files[simulation_id] = main_log_file
-            cls._stderr_files[simulation_id] = None  # 不再需要单独的 stderr
+            cls._stderr_files[simulation_id] = None
             
             state.process_pid = process.pid
             state.runner_status = RunnerStatus.RUNNING
@@ -459,7 +448,7 @@ class SimulationRunner:
             # Capture locale before spawning monitor thread
             current_locale = get_locale()
 
-            # 启动监控线程
+            # Spawn the log-tailing monitor thread.
             monitor_thread = threading.Thread(
                 target=cls._monitor_simulation,
                 args=(simulation_id, current_locale),
@@ -480,11 +469,10 @@ class SimulationRunner:
     
     @classmethod
     def _monitor_simulation(cls, simulation_id: str, locale: str = 'zh'):
-        """监控模拟进程，解析动作日志"""
+        """Monitor the simulation process and tail its per-platform action logs."""
         set_locale(locale)
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
-        
-        # 新的日志结构：分平台的动作日志
+
         twitter_actions_log = os.path.join(sim_dir, "twitter", "actions.jsonl")
         reddit_actions_log = os.path.join(sim_dir, "reddit", "actions.jsonl")
         
@@ -498,30 +486,26 @@ class SimulationRunner:
         reddit_position = 0
         
         try:
-            while process.poll() is None:  # 进程仍在运行
-                # 读取 Twitter 动作日志
+            while process.poll() is None:
                 if os.path.exists(twitter_actions_log):
                     twitter_position = cls._read_action_log(
                         twitter_actions_log, twitter_position, state, "twitter"
                     )
-                
-                # 读取 Reddit 动作日志
+
                 if os.path.exists(reddit_actions_log):
                     reddit_position = cls._read_action_log(
                         reddit_actions_log, reddit_position, state, "reddit"
                     )
-                
-                # 更新状态
+
                 cls._save_run_state(state)
                 time.sleep(2)
-            
-            # 进程结束后，最后读取一次日志
+
+            # Drain any log lines written between the last poll and the process exit.
             if os.path.exists(twitter_actions_log):
                 cls._read_action_log(twitter_actions_log, twitter_position, state, "twitter")
             if os.path.exists(reddit_actions_log):
                 cls._read_action_log(reddit_actions_log, reddit_position, state, "reddit")
-            
-            # 进程结束
+
             exit_code = process.returncode
             
             if exit_code == 0:
@@ -530,13 +514,13 @@ class SimulationRunner:
                 logger.info(t("log.simulation_runner.m006", simulation_id=simulation_id))
             else:
                 state.runner_status = RunnerStatus.FAILED
-                # 从主日志文件读取错误信息
+                # Pull the tail of the main log so the failure context is surfaced in state.error.
                 main_log_path = os.path.join(sim_dir, "simulation.log")
                 error_info = ""
                 try:
                     if os.path.exists(main_log_path):
                         with open(main_log_path, 'r', encoding='utf-8') as f:
-                            error_info = f.read()[-2000:]  # 取最后2000字符
+                            error_info = f.read()[-2000:]  # keep only the last 2000 chars
                 except Exception:
                     pass
                 state.error = f"进程退出码: {exit_code}, 错误: {error_info}"
@@ -553,7 +537,7 @@ class SimulationRunner:
             cls._save_run_state(state)
         
         finally:
-            # 停止图谱记忆更新器
+            # Tear down the graph-memory updater, if we started one.
             if cls._graph_memory_enabled.get(simulation_id, False):
                 try:
                     ZepGraphMemoryManager.stop_updater(simulation_id)
@@ -561,12 +545,11 @@ class SimulationRunner:
                 except Exception as e:
                     logger.error(t("log.simulation_runner.m010", e=e))
                 cls._graph_memory_enabled.pop(simulation_id, None)
-            
-            # 清理进程资源
+
             cls._processes.pop(simulation_id, None)
             cls._action_queues.pop(simulation_id, None)
-            
-            # 关闭日志文件句柄
+
+            # Close the retained log file handles.
             if simulation_id in cls._stdout_files:
                 try:
                     cls._stdout_files[simulation_id].close()
@@ -589,18 +572,17 @@ class SimulationRunner:
         platform: str
     ) -> int:
         """
-        读取动作日志文件
-        
+        Read new entries from a per-platform action log.
+
         Args:
-            log_path: 日志文件路径
-            position: 上次读取位置
-            state: 运行状态对象
-            platform: 平台名称 (twitter/reddit)
-            
+            log_path: Path to the action-log file.
+            position: Byte offset where the previous read finished.
+            state: Run-state object to mutate.
+            platform: Platform name (twitter/reddit).
+
         Returns:
-            新的读取位置
+            New byte offset after this read.
         """
-        # 检查是否启用了图谱记忆更新
         graph_memory_enabled = cls._graph_memory_enabled.get(state.simulation_id, False)
         graph_updater = None
         if graph_memory_enabled:
@@ -614,12 +596,12 @@ class SimulationRunner:
                     if line:
                         try:
                             action_data = json.loads(line)
-                            
-                            # 处理事件类型的条目
+
+                            # Event records (simulation_start/end, round_end, ...) are routed here.
                             if "event_type" in action_data:
                                 event_type = action_data.get("event_type")
-                                
-                                # 检测 simulation_end 事件，标记平台已完成
+
+                                # simulation_end means the platform finished its run.
                                 if event_type == "simulation_end":
                                     if platform == "twitter":
                                         state.twitter_completed = True
@@ -630,21 +612,19 @@ class SimulationRunner:
                                         state.reddit_running = False
                                         logger.info(t("log.simulation_runner.m012", state=state.simulation_id, action_data=action_data.get('total_rounds'), action_data_2=action_data.get('total_actions')))
                                     
-                                    # 检查是否所有启用的平台都已完成
-                                    # 如果只运行了一个平台，只检查那个平台
-                                    # 如果运行了两个平台，需要两个都完成
+                                    # Mark the run as completed once every enabled platform has reported
+                                    # simulation_end. Single-platform runs only need that one.
                                     all_completed = cls._check_all_platforms_completed(state)
                                     if all_completed:
                                         state.runner_status = RunnerStatus.COMPLETED
                                         state.completed_at = datetime.now().isoformat()
                                         logger.info(t("log.simulation_runner.m013", state=state.simulation_id))
                                 
-                                # 更新轮次信息（从 round_end 事件）
+                                # Round counters come from round_end events.
                                 elif event_type == "round_end":
                                     round_num = action_data.get("round", 0)
                                     simulated_hours = action_data.get("simulated_hours", 0)
-                                    
-                                    # 更新各平台独立的轮次和时间
+
                                     if platform == "twitter":
                                         if round_num > state.twitter_current_round:
                                             state.twitter_current_round = round_num
@@ -653,13 +633,12 @@ class SimulationRunner:
                                         if round_num > state.reddit_current_round:
                                             state.reddit_current_round = round_num
                                         state.reddit_simulated_hours = simulated_hours
-                                    
-                                    # 总体轮次取两个平台的最大值
+
+                                    # Overall counters track the max across enabled platforms.
                                     if round_num > state.current_round:
                                         state.current_round = round_num
-                                    # 总体时间取两个平台的最大值
                                     state.simulated_hours = max(state.twitter_simulated_hours, state.reddit_simulated_hours)
-                                
+
                                 continue
                             
                             action = AgentAction(
@@ -674,12 +653,11 @@ class SimulationRunner:
                                 success=action_data.get("success", True),
                             )
                             state.add_action(action)
-                            
-                            # 更新轮次
+
                             if action.round_num and action.round_num > state.current_round:
                                 state.current_round = action.round_num
-                            
-                            # 如果启用了图谱记忆更新，将活动发送到Zep
+
+                            # Forward the activity to the Zep graph when the updater is enabled.
                             if graph_updater:
                                 graph_updater.add_activity_from_dict(action_data, platform)
                             
@@ -693,46 +671,44 @@ class SimulationRunner:
     @classmethod
     def _check_all_platforms_completed(cls, state: SimulationRunState) -> bool:
         """
-        检查所有启用的平台是否都已完成模拟
-        
-        通过检查对应的 actions.jsonl 文件是否存在来判断平台是否被启用
-        
+        Return whether every enabled platform has completed its simulation.
+
+        A platform counts as enabled when its corresponding actions.jsonl file exists on disk.
+
         Returns:
-            True 如果所有启用的平台都已完成
+            True if all enabled platforms have completed.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, state.simulation_id)
         twitter_log = os.path.join(sim_dir, "twitter", "actions.jsonl")
         reddit_log = os.path.join(sim_dir, "reddit", "actions.jsonl")
-        
-        # 检查哪些平台被启用（通过文件是否存在判断）
+
+        # File presence is our enabled-platform signal.
         twitter_enabled = os.path.exists(twitter_log)
         reddit_enabled = os.path.exists(reddit_log)
-        
-        # 如果平台被启用但未完成，则返回 False
+
         if twitter_enabled and not state.twitter_completed:
             return False
         if reddit_enabled and not state.reddit_completed:
             return False
-        
-        # 至少有一个平台被启用且已完成
+
+        # At least one platform must be enabled (and, by the checks above, completed).
         return twitter_enabled or reddit_enabled
     
     @classmethod
     def _terminate_process(cls, process: subprocess.Popen, simulation_id: str, timeout: int = 10):
         """
-        跨平台终止进程及其子进程
-        
+        Terminate a process and its subprocesses in a cross-platform way.
+
         Args:
-            process: 要终止的进程
-            simulation_id: 模拟ID（用于日志）
-            timeout: 等待进程退出的超时时间（秒）
+            process: Process to terminate.
+            simulation_id: Simulation ID (used for log messages).
+            timeout: Seconds to wait for graceful exit before escalating.
         """
         if IS_WINDOWS:
-            # Windows: 使用 taskkill 命令终止进程树
-            # /F = 强制终止, /T = 终止进程树（包括子进程）
+            # Windows: taskkill /T tears down the whole process tree, /F escalates to a hard kill.
             logger.info(t("log.simulation_runner.m015", simulation_id=simulation_id, process=process.pid))
             try:
-                # 先尝试优雅终止
+                # Graceful termination first.
                 subprocess.run(
                     ['taskkill', '/PID', str(process.pid), '/T'],
                     capture_output=True,
@@ -741,7 +717,7 @@ class SimulationRunner:
                 try:
                     process.wait(timeout=timeout)
                 except subprocess.TimeoutExpired:
-                    # 强制终止
+                    # Force kill the tree.
                     logger.warning(t("log.simulation_runner.m016", simulation_id=simulation_id))
                     subprocess.run(
                         ['taskkill', '/F', '/PID', str(process.pid), '/T'],
@@ -757,25 +733,25 @@ class SimulationRunner:
                 except subprocess.TimeoutExpired:
                     process.kill()
         else:
-            # Unix: 使用进程组终止
-            # 由于使用了 start_new_session=True，进程组 ID 等于主进程 PID
+            # Unix: kill the entire process group.
+            # Because the subprocess was started with start_new_session=True the pgid equals the PID.
             pgid = os.getpgid(process.pid)
             logger.info(t("log.simulation_runner.m018", simulation_id=simulation_id, pgid=pgid))
-            
-            # 先发送 SIGTERM 给整个进程组
+
+            # SIGTERM first to allow graceful shutdown.
             os.killpg(pgid, signal.SIGTERM)
-            
+
             try:
                 process.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
-                # 如果超时后还没结束，强制发送 SIGKILL
+                # Escalate to SIGKILL on timeout.
                 logger.warning(t("log.simulation_runner.m019", simulation_id=simulation_id))
                 os.killpg(pgid, signal.SIGKILL)
                 process.wait(timeout=5)
     
     @classmethod
     def stop_simulation(cls, simulation_id: str) -> SimulationRunState:
-        """停止模拟"""
+        """Stop the simulation subprocess and update its state."""
         state = cls.get_run_state(simulation_id)
         if not state:
             raise ValueError(f"模拟不存在: {simulation_id}")
@@ -786,17 +762,16 @@ class SimulationRunner:
         state.runner_status = RunnerStatus.STOPPING
         cls._save_run_state(state)
         
-        # 终止进程
         process = cls._processes.get(simulation_id)
         if process and process.poll() is None:
             try:
                 cls._terminate_process(process, simulation_id)
             except ProcessLookupError:
-                # 进程已经不存在
+                # The process has already exited.
                 pass
             except Exception as e:
                 logger.error(t("log.simulation_runner.m020", simulation_id=simulation_id, e=e))
-                # 回退到直接终止进程
+                # Fall back to direct termination on the Popen handle.
                 try:
                     process.terminate()
                     process.wait(timeout=5)
@@ -808,8 +783,8 @@ class SimulationRunner:
         state.reddit_running = False
         state.completed_at = datetime.now().isoformat()
         cls._save_run_state(state)
-        
-        # 停止图谱记忆更新器
+
+        # Tear down the graph-memory updater, if any.
         if cls._graph_memory_enabled.get(simulation_id, False):
             try:
                 ZepGraphMemoryManager.stop_updater(simulation_id)
@@ -831,14 +806,14 @@ class SimulationRunner:
         round_num: Optional[int] = None
     ) -> List[AgentAction]:
         """
-        从单个动作文件中读取动作
-        
+        Read actions from a single action-log file.
+
         Args:
-            file_path: 动作日志文件路径
-            default_platform: 默认平台（当动作记录中没有 platform 字段时使用）
-            platform_filter: 过滤平台
-            agent_id: 过滤 Agent ID
-            round_num: 过滤轮次
+            file_path: Path to the action-log file.
+            default_platform: Platform to assume when a record has no `platform` field.
+            platform_filter: Optional platform filter.
+            agent_id: Optional agent-id filter.
+            round_num: Optional round-number filter.
         """
         if not os.path.exists(file_path):
             return []
@@ -853,19 +828,18 @@ class SimulationRunner:
                 
                 try:
                     data = json.loads(line)
-                    
-                    # 跳过非动作记录（如 simulation_start, round_start, round_end 等事件）
+
+                    # Skip event records (simulation_start, round_start, round_end, ...).
                     if "event_type" in data:
                         continue
-                    
-                    # 跳过没有 agent_id 的记录（非 Agent 动作）
+
+                    # Skip records without an agent_id (non-agent actions).
                     if "agent_id" not in data:
                         continue
-                    
-                    # 获取平台：优先使用记录中的 platform，否则使用默认平台
+
+                    # Prefer the record's own platform; fall back to the default for legacy entries.
                     record_platform = data.get("platform") or default_platform or ""
-                    
-                    # 过滤
+
                     if platform_filter and record_platform != platform_filter:
                         continue
                     if agent_id is not None and data.get("agent_id") != agent_id:
@@ -899,54 +873,54 @@ class SimulationRunner:
         round_num: Optional[int] = None
     ) -> List[AgentAction]:
         """
-        获取所有平台的完整动作历史（无分页限制）
-        
+        Return the complete action history across all platforms (no pagination).
+
         Args:
-            simulation_id: 模拟ID
-            platform: 过滤平台（twitter/reddit）
-            agent_id: 过滤Agent
-            round_num: 过滤轮次
-            
+            simulation_id: Simulation ID.
+            platform: Optional platform filter (twitter/reddit).
+            agent_id: Optional agent filter.
+            round_num: Optional round filter.
+
         Returns:
-            完整的动作列表（按时间戳排序，新的在前）
+            Full action list, sorted by timestamp with newest first.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         actions = []
-        
-        # 读取 Twitter 动作文件（根据文件路径自动设置 platform 为 twitter）
+
+        # Twitter action log: derive platform from the file path.
         twitter_actions_log = os.path.join(sim_dir, "twitter", "actions.jsonl")
         if not platform or platform == "twitter":
             actions.extend(cls._read_actions_from_file(
                 twitter_actions_log,
-                default_platform="twitter",  # 自动填充 platform 字段
+                default_platform="twitter",
                 platform_filter=platform,
-                agent_id=agent_id, 
+                agent_id=agent_id,
                 round_num=round_num
             ))
-        
-        # 读取 Reddit 动作文件（根据文件路径自动设置 platform 为 reddit）
+
+        # Reddit action log: derive platform from the file path.
         reddit_actions_log = os.path.join(sim_dir, "reddit", "actions.jsonl")
         if not platform or platform == "reddit":
             actions.extend(cls._read_actions_from_file(
                 reddit_actions_log,
-                default_platform="reddit",  # 自动填充 platform 字段
+                default_platform="reddit",
                 platform_filter=platform,
                 agent_id=agent_id,
                 round_num=round_num
             ))
-        
-        # 如果分平台文件不存在，尝试读取旧的单一文件格式
+
+        # Fall back to the legacy single-file layout if no per-platform files exist.
         if not actions:
             actions_log = os.path.join(sim_dir, "actions.jsonl")
             actions = cls._read_actions_from_file(
                 actions_log,
-                default_platform=None,  # 旧格式文件中应该有 platform 字段
+                default_platform=None,  # Legacy files carry their own platform field.
                 platform_filter=platform,
                 agent_id=agent_id,
                 round_num=round_num
             )
-        
-        # 按时间戳排序（新的在前）
+
+        # Newest-first by timestamp.
         actions.sort(key=lambda x: x.timestamp, reverse=True)
         
         return actions
@@ -962,18 +936,18 @@ class SimulationRunner:
         round_num: Optional[int] = None
     ) -> List[AgentAction]:
         """
-        获取动作历史（带分页）
-        
+        Return action history with pagination.
+
         Args:
-            simulation_id: 模拟ID
-            limit: 返回数量限制
-            offset: 偏移量
-            platform: 过滤平台
-            agent_id: 过滤Agent
-            round_num: 过滤轮次
-            
+            simulation_id: Simulation ID.
+            limit: Maximum number of actions to return.
+            offset: Offset into the sorted result list.
+            platform: Optional platform filter.
+            agent_id: Optional agent filter.
+            round_num: Optional round filter.
+
         Returns:
-            动作列表
+            A page of actions.
         """
         actions = cls.get_all_actions(
             simulation_id=simulation_id,
@@ -981,8 +955,7 @@ class SimulationRunner:
             agent_id=agent_id,
             round_num=round_num
         )
-        
-        # 分页
+
         return actions[offset:offset + limit]
     
     @classmethod
@@ -993,19 +966,19 @@ class SimulationRunner:
         end_round: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        获取模拟时间线（按轮次汇总）
-        
+        Return a per-round timeline summary for the simulation.
+
         Args:
-            simulation_id: 模拟ID
-            start_round: 起始轮次
-            end_round: 结束轮次
-            
+            simulation_id: Simulation ID.
+            start_round: First round to include (inclusive).
+            end_round: Last round to include (inclusive); None means no upper bound.
+
         Returns:
-            每轮的汇总信息
+            One summary entry per round.
         """
         actions = cls.get_actions(simulation_id, limit=10000)
-        
-        # 按轮次分组
+
+        # Group actions by round.
         rounds: Dict[int, Dict[str, Any]] = {}
         
         for action in actions:
@@ -1038,7 +1011,7 @@ class SimulationRunner:
             r["action_types"][action.action_type] = r["action_types"].get(action.action_type, 0) + 1
             r["last_action_time"] = action.timestamp
         
-        # 转换为列表
+        # Materialise into a sorted list.
         result = []
         for round_num in sorted(rounds.keys()):
             r = rounds[round_num]
@@ -1059,10 +1032,10 @@ class SimulationRunner:
     @classmethod
     def get_agent_stats(cls, simulation_id: str) -> List[Dict[str, Any]]:
         """
-        获取每个Agent的统计信息
-        
+        Return per-agent statistics for the simulation.
+
         Returns:
-            Agent统计列表
+            Per-agent statistics, sorted by total action count (descending).
         """
         actions = cls.get_actions(simulation_id, limit=10000)
         
@@ -1094,7 +1067,6 @@ class SimulationRunner:
             stats["action_types"][action.action_type] = stats["action_types"].get(action.action_type, 0) + 1
             stats["last_action_time"] = action.timestamp
         
-        # 按总动作数排序
         result = sorted(agent_stats.values(), key=lambda x: x["total_actions"], reverse=True)
         
         return result
@@ -1102,25 +1074,25 @@ class SimulationRunner:
     @classmethod
     def cleanup_simulation_logs(cls, simulation_id: str) -> Dict[str, Any]:
         """
-        清理模拟的运行日志（用于强制重新开始模拟）
-        
-        会删除以下文件：
+        Clean up the simulation's run logs so the simulation can be force-restarted.
+
+        Deletes the following files:
         - run_state.json
         - twitter/actions.jsonl
         - reddit/actions.jsonl
         - simulation.log
         - stdout.log / stderr.log
-        - twitter_simulation.db（模拟数据库）
-        - reddit_simulation.db（模拟数据库）
-        - env_status.json（环境状态）
-        
-        注意：不会删除配置文件（simulation_config.json）和 profile 文件
-        
+        - twitter_simulation.db (simulation database)
+        - reddit_simulation.db (simulation database)
+        - env_status.json (environment status)
+
+        Note: simulation_config.json and the profile files are preserved.
+
         Args:
-            simulation_id: 模拟ID
-            
+            simulation_id: Simulation ID.
+
         Returns:
-            清理结果信息
+            Cleanup result info.
         """
         import shutil
         
@@ -1132,21 +1104,20 @@ class SimulationRunner:
         cleaned_files = []
         errors = []
         
-        # 要删除的文件列表（包括数据库文件）
+        # Files to delete (includes per-platform databases).
         files_to_delete = [
             "run_state.json",
             "simulation.log",
             "stdout.log",
             "stderr.log",
-            "twitter_simulation.db",  # Twitter 平台数据库
-            "reddit_simulation.db",   # Reddit 平台数据库
-            "env_status.json",        # 环境状态文件
+            "twitter_simulation.db",  # Twitter platform database.
+            "reddit_simulation.db",   # Reddit platform database.
+            "env_status.json",        # Environment-status file.
         ]
-        
-        # 要删除的目录列表（包含动作日志）
+
+        # Per-platform directories whose action logs should be cleaned.
         dirs_to_clean = ["twitter", "reddit"]
-        
-        # 删除文件
+
         for filename in files_to_delete:
             file_path = os.path.join(sim_dir, filename)
             if os.path.exists(file_path):
@@ -1155,8 +1126,8 @@ class SimulationRunner:
                     cleaned_files.append(filename)
                 except Exception as e:
                     errors.append(f"删除 {filename} 失败: {str(e)}")
-        
-        # 清理平台目录中的动作日志
+
+        # Clean per-platform action logs.
         for dir_name in dirs_to_clean:
             dir_path = os.path.join(sim_dir, dir_name)
             if os.path.exists(dir_path):
@@ -1168,7 +1139,7 @@ class SimulationRunner:
                     except Exception as e:
                         errors.append(f"删除 {dir_name}/actions.jsonl 失败: {str(e)}")
         
-        # 清理内存中的运行状态
+        # Drop the in-memory run state for this simulation.
         if simulation_id in cls._run_states:
             del cls._run_states[simulation_id]
         
@@ -1180,57 +1151,55 @@ class SimulationRunner:
             "errors": errors if errors else None
         }
     
-    # 防止重复清理的标志
+    # Guard so cleanup_all_simulations only runs once per process lifetime.
     _cleanup_done = False
-    
+
     @classmethod
     def cleanup_all_simulations(cls):
         """
-        清理所有运行中的模拟进程
-        
-        在服务器关闭时调用，确保所有子进程被终止
+        Clean up every running simulation subprocess.
+
+        Invoked at server shutdown to guarantee no child processes leak.
         """
-        # 防止重复清理
         if cls._cleanup_done:
             return
         cls._cleanup_done = True
-        
-        # 检查是否有内容需要清理（避免空进程的进程打印无用日志）
+
+        # Skip the "shutting down" log entirely if there's nothing to clean up.
         has_processes = bool(cls._processes)
         has_updaters = bool(cls._graph_memory_enabled)
-        
+
         if not has_processes and not has_updaters:
-            return  # 没有需要清理的内容，静默返回
-        
+            return
+
         logger.info(t("log.simulation_runner.m025"))
-        
-        # 首先停止所有图谱记忆更新器（stop_all 内部会打印日志）
+
+        # Stop graph-memory updaters first (stop_all logs internally).
         try:
             ZepGraphMemoryManager.stop_all()
         except Exception as e:
             logger.error(t("log.simulation_runner.m026", e=e))
         cls._graph_memory_enabled.clear()
-        
-        # 复制字典以避免在迭代时修改
+
+        # Snapshot the process map so we can mutate it during iteration.
         processes = list(cls._processes.items())
-        
+
         for simulation_id, process in processes:
             try:
-                if process.poll() is None:  # 进程仍在运行
+                if process.poll() is None:
                     logger.info(t("log.simulation_runner.m027", simulation_id=simulation_id, process=process.pid))
-                    
+
                     try:
-                        # 使用跨平台的进程终止方法
                         cls._terminate_process(process, simulation_id, timeout=5)
                     except (ProcessLookupError, OSError):
-                        # 进程可能已经不存在，尝试直接终止
+                        # The process may already be gone; fall back to direct termination.
                         try:
                             process.terminate()
                             process.wait(timeout=3)
                         except Exception:
                             process.kill()
-                    
-                    # 更新 run_state.json
+
+                    # Update run_state.json so external readers see the stopped status.
                     state = cls.get_run_state(simulation_id)
                     if state:
                         state.runner_status = RunnerStatus.STOPPED
@@ -1240,7 +1209,7 @@ class SimulationRunner:
                         state.error = "服务器关闭，模拟被终止"
                         cls._save_run_state(state)
                     
-                    # 同时更新 state.json，将状态设为 stopped
+                    # Also flip the project-level state.json status to "stopped".
                     try:
                         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
                         state_file = os.path.join(sim_dir, "state.json")
@@ -1261,7 +1230,7 @@ class SimulationRunner:
             except Exception as e:
                 logger.error(t("log.simulation_runner.m032", simulation_id=simulation_id, e=e))
         
-        # 清理文件句柄
+        # Close any retained log file handles.
         for simulation_id, file_handle in list(cls._stdout_files.items()):
             try:
                 if file_handle:
@@ -1278,7 +1247,7 @@ class SimulationRunner:
                 pass
         cls._stderr_files.clear()
         
-        # 清理内存中的状态
+        # Drop in-memory bookkeeping.
         cls._processes.clear()
         cls._action_queues.clear()
         
@@ -1287,99 +1256,98 @@ class SimulationRunner:
     @classmethod
     def register_cleanup(cls):
         """
-        注册清理函数
-        
-        在 Flask 应用启动时调用，确保服务器关闭时清理所有模拟进程
+        Register the shutdown cleanup hook.
+
+        Called at Flask application startup so that all simulation subprocesses are torn down
+        when the server stops.
         """
         global _cleanup_registered
-        
+
         if _cleanup_registered:
             return
-        
-        # Flask debug 模式下，只在 reloader 子进程中注册清理（实际运行应用的进程）
-        # WERKZEUG_RUN_MAIN=true 表示是 reloader 子进程
-        # 如果不是 debug 模式，则没有这个环境变量，也需要注册
+
+        # In Flask debug mode the reloader spawns a child process that actually runs the app
+        # (signaled by WERKZEUG_RUN_MAIN=true). Outside debug mode that variable is unset and we
+        # still want to register the cleanup hook.
         is_reloader_process = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
         is_debug_mode = os.environ.get('FLASK_DEBUG') == '1' or os.environ.get('WERKZEUG_RUN_MAIN') is not None
-        
-        # 在 debug 模式下，只在 reloader 子进程中注册；非 debug 模式下始终注册
+
+        # Debug mode: only register inside the reloader child. Non-debug: always register.
         if is_debug_mode and not is_reloader_process:
-            _cleanup_registered = True  # 标记已注册，防止子进程再次尝试
+            _cleanup_registered = True  # Prevent the parent process from retrying.
             return
-        
-        # 保存原有的信号处理器
+
+        # Capture the previously installed signal handlers so we can chain to them.
         original_sigint = signal.getsignal(signal.SIGINT)
         original_sigterm = signal.getsignal(signal.SIGTERM)
-        # SIGHUP 只在 Unix 系统存在（macOS/Linux），Windows 没有
+        # SIGHUP exists only on Unix (macOS/Linux); Windows does not have it.
         original_sighup = None
         has_sighup = hasattr(signal, 'SIGHUP')
         if has_sighup:
             original_sighup = signal.getsignal(signal.SIGHUP)
-        
+
         def cleanup_handler(signum=None, frame=None):
-            """信号处理器：先清理模拟进程，再调用原处理器"""
-            # 只有在有进程需要清理时才打印日志
+            """Signal handler that cleans up simulations before delegating to the original handler."""
+            # Only log when there is actually something to clean up.
             if cls._processes or cls._graph_memory_enabled:
                 logger.info(t("log.simulation_runner.m034", signum=signum))
             cls.cleanup_all_simulations()
-            
-            # 调用原有的信号处理器，让 Flask 正常退出
+
+            # Chain to the original handler so Flask exits normally.
             if signum == signal.SIGINT and callable(original_sigint):
                 original_sigint(signum, frame)
             elif signum == signal.SIGTERM and callable(original_sigterm):
                 original_sigterm(signum, frame)
             elif has_sighup and signum == signal.SIGHUP:
-                # SIGHUP: 终端关闭时发送
+                # SIGHUP is sent when the terminal is closed.
                 if callable(original_sighup):
                     original_sighup(signum, frame)
                 else:
-                    # 默认行为：正常退出
+                    # Default behavior: exit cleanly.
                     sys.exit(0)
             else:
-                # 如果原处理器不可调用（如 SIG_DFL），则使用默认行为
+                # If the original handler is not callable (e.g. SIG_DFL), use the default behavior.
                 raise KeyboardInterrupt
-        
-        # 注册 atexit 处理器（作为备用）
+
+        # Register the atexit handler as a fallback.
         atexit.register(cls.cleanup_all_simulations)
-        
-        # 注册信号处理器（仅在主线程中）
+
+        # Register signal handlers (only valid from the main thread).
         try:
-            # SIGTERM: kill 命令默认信号
+            # SIGTERM: default signal sent by `kill`.
             signal.signal(signal.SIGTERM, cleanup_handler)
             # SIGINT: Ctrl+C
             signal.signal(signal.SIGINT, cleanup_handler)
-            # SIGHUP: 终端关闭（仅 Unix 系统）
+            # SIGHUP: terminal close (Unix only).
             if has_sighup:
                 signal.signal(signal.SIGHUP, cleanup_handler)
         except ValueError:
-            # 不在主线程中，只能使用 atexit
+            # Not the main thread — fall back to the atexit hook.
             logger.warning(t("log.simulation_runner.m035"))
-        
+
         _cleanup_registered = True
     
     @classmethod
     def get_running_simulations(cls) -> List[str]:
-        """
-        获取所有正在运行的模拟ID列表
-        """
+        """Return a list of every simulation ID with a live subprocess."""
         running = []
         for sim_id, process in cls._processes.items():
             if process.poll() is None:
                 running.append(sim_id)
         return running
     
-    # ============== Interview 功能 ==============
-    
+    # ============== Interview feature ==============
+
     @classmethod
     def check_env_alive(cls, simulation_id: str) -> bool:
         """
-        检查模拟环境是否存活（可以接收Interview命令）
+        Check whether the simulation environment is alive and able to receive interview commands.
 
         Args:
-            simulation_id: 模拟ID
+            simulation_id: Simulation ID.
 
         Returns:
-            True 表示环境存活，False 表示环境已关闭
+            True if the environment is alive, False if it has shut down.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
@@ -1391,13 +1359,13 @@ class SimulationRunner:
     @classmethod
     def get_env_status_detail(cls, simulation_id: str) -> Dict[str, Any]:
         """
-        获取模拟环境的详细状态信息
+        Return detailed status info for the simulation environment.
 
         Args:
-            simulation_id: 模拟ID
+            simulation_id: Simulation ID.
 
         Returns:
-            状态详情字典，包含 status, twitter_available, reddit_available, timestamp
+            Status dict containing status, twitter_available, reddit_available, timestamp.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         status_file = os.path.join(sim_dir, "env_status.json")
@@ -1434,24 +1402,24 @@ class SimulationRunner:
         timeout: float = 60.0
     ) -> Dict[str, Any]:
         """
-        采访单个Agent
+        Interview a single agent.
 
         Args:
-            simulation_id: 模拟ID
-            agent_id: Agent ID
-            prompt: 采访问题
-            platform: 指定平台（可选）
-                - "twitter": 只采访Twitter平台
-                - "reddit": 只采访Reddit平台
-                - None: 双平台模拟时同时采访两个平台，返回整合结果
-            timeout: 超时时间（秒）
+            simulation_id: Simulation ID.
+            agent_id: Agent ID.
+            prompt: Interview question.
+            platform: Optional platform selector.
+                - "twitter": only interview the agent on Twitter.
+                - "reddit": only interview the agent on Reddit.
+                - None: in dual-platform runs, interview both platforms and return a merged result.
+            timeout: Timeout in seconds.
 
         Returns:
-            采访结果字典
+            Interview result dict.
 
         Raises:
-            ValueError: 模拟不存在或环境未运行
-            TimeoutError: 等待响应超时
+            ValueError: Simulation does not exist or its environment is not running.
+            TimeoutError: Timed out waiting for the response.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
@@ -1497,23 +1465,23 @@ class SimulationRunner:
         timeout: float = 120.0
     ) -> Dict[str, Any]:
         """
-        批量采访多个Agent
+        Interview multiple agents in batch.
 
         Args:
-            simulation_id: 模拟ID
-            interviews: 采访列表，每个元素包含 {"agent_id": int, "prompt": str, "platform": str(可选)}
-            platform: 默认平台（可选，会被每个采访项的platform覆盖）
-                - "twitter": 默认只采访Twitter平台
-                - "reddit": 默认只采访Reddit平台
-                - None: 双平台模拟时每个Agent同时采访两个平台
-            timeout: 超时时间（秒）
+            simulation_id: Simulation ID.
+            interviews: Interview list; each entry is {"agent_id": int, "prompt": str, "platform": str (optional)}.
+            platform: Optional default platform (overridden per-interview by an entry's own `platform`).
+                - "twitter": default to interviewing only Twitter.
+                - "reddit": default to interviewing only Reddit.
+                - None: in dual-platform runs, interview every agent on both platforms.
+            timeout: Timeout in seconds.
 
         Returns:
-            批量采访结果字典
+            Batch interview result dict.
 
         Raises:
-            ValueError: 模拟不存在或环境未运行
-            TimeoutError: 等待响应超时
+            ValueError: Simulation does not exist or its environment is not running.
+            TimeoutError: Timed out waiting for the response.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
@@ -1556,27 +1524,27 @@ class SimulationRunner:
         timeout: float = 180.0
     ) -> Dict[str, Any]:
         """
-        采访所有Agent（全局采访）
+        Interview every agent in the simulation (global interview).
 
-        使用相同的问题采访模拟中的所有Agent
+        Sends the same prompt to every agent in the simulation.
 
         Args:
-            simulation_id: 模拟ID
-            prompt: 采访问题（所有Agent使用相同问题）
-            platform: 指定平台（可选）
-                - "twitter": 只采访Twitter平台
-                - "reddit": 只采访Reddit平台
-                - None: 双平台模拟时每个Agent同时采访两个平台
-            timeout: 超时时间（秒）
+            simulation_id: Simulation ID.
+            prompt: Interview question used for every agent.
+            platform: Optional platform selector.
+                - "twitter": only interview Twitter.
+                - "reddit": only interview Reddit.
+                - None: in dual-platform runs, interview every agent on both platforms.
+            timeout: Timeout in seconds.
 
         Returns:
-            全局采访结果字典
+            Global interview result dict.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
             raise ValueError(f"模拟不存在: {simulation_id}")
 
-        # 从配置文件获取所有Agent信息
+        # Read every agent from the simulation config.
         config_path = os.path.join(sim_dir, "simulation_config.json")
         if not os.path.exists(config_path):
             raise ValueError(f"模拟配置不存在: {simulation_id}")
@@ -1588,7 +1556,7 @@ class SimulationRunner:
         if not agent_configs:
             raise ValueError(f"模拟配置中没有Agent: {simulation_id}")
 
-        # 构建批量采访列表
+        # Build the batch-interview payload.
         interviews = []
         for agent_config in agent_configs:
             agent_id = agent_config.get("agent_id")
@@ -1614,16 +1582,17 @@ class SimulationRunner:
         timeout: float = 30.0
     ) -> Dict[str, Any]:
         """
-        关闭模拟环境（而不是停止模拟进程）
-        
-        向模拟发送关闭环境命令，使其优雅退出等待命令模式
-        
+        Close the simulation environment (does not stop the simulation subprocess).
+
+        Sends a close-environment command to the simulation so it exits its wait-for-command mode
+        gracefully.
+
         Args:
-            simulation_id: 模拟ID
-            timeout: 超时时间（秒）
-            
+            simulation_id: Simulation ID.
+            timeout: Timeout in seconds.
+
         Returns:
-            操作结果字典
+            Operation-result dict.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
@@ -1649,7 +1618,7 @@ class SimulationRunner:
                 "timestamp": response.timestamp
             }
         except TimeoutError:
-            # 超时可能是因为环境正在关闭
+            # Timing out can simply mean the environment is already shutting down.
             return {
                 "success": True,
                 "message": "环境关闭命令已发送（等待响应超时，环境可能正在关闭）"
@@ -1663,7 +1632,7 @@ class SimulationRunner:
         agent_id: Optional[int] = None,
         limit: int = 100
     ) -> List[Dict[str, Any]]:
-        """从单个数据库获取Interview历史"""
+        """Read the interview history from a single per-platform database."""
         import sqlite3
         
         if not os.path.exists(db_path):
@@ -1722,29 +1691,29 @@ class SimulationRunner:
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
-        获取Interview历史记录（从数据库读取）
-        
+        Return the interview history (read from the per-platform databases).
+
         Args:
-            simulation_id: 模拟ID
-            platform: 平台类型（reddit/twitter/None）
-                - "reddit": 只获取Reddit平台的历史
-                - "twitter": 只获取Twitter平台的历史
-                - None: 获取两个平台的所有历史
-            agent_id: 指定Agent ID（可选，只获取该Agent的历史）
-            limit: 每个平台返回数量限制
-            
+            simulation_id: Simulation ID.
+            platform: Platform selector (reddit/twitter/None).
+                - "reddit": only return Reddit history.
+                - "twitter": only return Twitter history.
+                - None: return history from both platforms.
+            agent_id: Optional agent-id filter; if set, only that agent's history is returned.
+            limit: Max number of records per platform.
+
         Returns:
-            Interview历史记录列表
+            Interview-history list.
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
-        
+
         results = []
-        
-        # 确定要查询的平台
+
+        # Decide which platform databases to query.
         if platform in ("reddit", "twitter"):
             platforms = [platform]
         else:
-            # 不指定platform时，查询两个平台
+            # No platform specified: query both.
             platforms = ["twitter", "reddit"]
         
         for p in platforms:
@@ -1757,10 +1726,10 @@ class SimulationRunner:
             )
             results.extend(platform_results)
         
-        # 按时间降序排序
+        # Newest-first by timestamp.
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-        
-        # 如果查询了多个平台，限制总数
+
+        # When multiple platforms were queried, cap the merged result size.
         if len(platforms) > 1 and len(results) > limit:
             results = results[:limit]
         
