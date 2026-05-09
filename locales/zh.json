@@ -185,7 +185,7 @@
   "step3": {
     "startGenerateReport": "开始生成结果报告",
     "generatingReport": "启动中...",
-    "waitingForActions": "Waiting for agent actions...",
+    "waitingForActions": "等待智能体执行动作...",
     "errorMissingSimId": "错误：缺少 simulationId",
     "startingDualSim": "正在启动双平台并行模拟...",
     "graphMemoryUpdateEnabled": "已开启动态图谱更新模式",
@@ -216,7 +216,7 @@
   "step4": {
     "generatingSection": "正在生成{title}...",
     "goToInteraction": "进入深度互动",
-    "waitingForReportAgent": "Waiting for Report Agent...",
+    "waitingForReportAgent": "等待报告智能体...",
     "collapse": "收起 ▲",
     "expandAll": "展开全部 {count} 条 ▼",
     "expandAllEntities": "展开全部 {count} 个 ▼",
@@ -256,13 +256,13 @@
     "world2": "世界2"
   },
   "step5": {
-    "interactiveTools": "Interactive Tools",
-    "agentsAvailable": "{count} agents available",
+    "interactiveTools": "交互工具",
+    "agentsAvailable": "{count} 个智能体可用",
     "chatWithReportAgent": "与Report Agent对话",
     "chatWithAgent": "与世界中任意个体对话",
     "selectChatTarget": "选择对话对象",
     "sendSurvey": "发送问卷调查到世界中",
-    "reportAgentChat": "Report Agent - Chat",
+    "reportAgentChat": "报告智能体 - 对话",
     "reportAgentDesc": "报告生成智能体的快速对话版本，可调用 4 种专业工具，拥有MiroFish的完整记忆",
     "toolInsightForge": "InsightForge 深度归因",
     "toolInsightForgeDesc": "对齐现实世界种子数据与模拟环境状态，结合Global/Local Memory机制，提供跨时空的深度归因分析",
@@ -291,13 +291,13 @@
     "selectAgentFirst": "请先选择一个模拟个体"
   },
   "graph": {
-    "panelTitle": "Graph Relationship Visualization",
+    "panelTitle": "图谱关系可视化",
     "refreshGraph": "刷新图谱",
     "graphMemoryRealtime": "GraphRAG长短期记忆实时更新中",
     "realtimeUpdating": "实时更新中...",
     "pendingContentHint": "还有少量内容处理中，建议稍后手动刷新图谱",
-    "nodeDetails": "Node Details",
-    "relationship": "Relationship",
+    "nodeDetails": "节点详情",
+    "relationship": "关系",
     "graphDataLoading": "图谱数据加载中...",
     "waitingOntology": "等待本体生成...",
     "toggleMaximize": "最大化/还原",
@@ -578,7 +578,7 @@
     "preparingSimEnv": "正在准备模拟环境...",
     "detectedExistingPrep": "检测到已有完成的准备工作，直接使用",
     "prepareTaskStarted": "准备任务已启动",
-    "prepareTaskId": "  └─ Task ID: {taskId}",
+    "prepareTaskId": "  └─ 任务 ID: {taskId}",
     "zepEntitiesFound": "从Zep图谱读取到 {count} 个实体",
     "entityTypes": "  └─ 实体类型: {types}",
     "startPollingProgress": "开始轮询准备进度...",
@@ -772,7 +772,9 @@
       "m020": "处理实体 {entity} 时发生异常: {str}",
       "m021": "已保存 {len} 个Twitter Profile到 {file_path} (OASIS CSV格式)",
       "m022": "已保存 {len} 个Reddit Profile到 {file_path} (JSON格式，包含user_id字段)",
-      "m023": "save_profiles_to_json已废弃，请使用save_profiles方法"
+      "m023": "save_profiles_to_json已废弃，请使用save_profiles方法",
+      "m024": "开始生成Agent人设 - 共 {total} 个实体，并行数: {parallel_count}",
+      "m025": "人设生成完成！共生成 {count} 个Agent"
     },
     "simulation_config": {
       "m001": "开始智能生成模拟配置: simulation_id={simulation_id}, 实体数={len}",
@@ -920,7 +922,10 @@
       "m017": "=== 开始构建图谱 ===",
       "m018": "配置错误: {errors}",
       "m019": "请求参数: project_id={project_id}",
-      "m026": "创建图谱构建任务: task_id={task_id}, project_id={project_id}"
+      "m026": "创建图谱构建任务: task_id={task_id}, project_id={project_id}",
+      "m027": "[{task_id}] 开始构建图谱...",
+      "m028": "[{task_id}] 图谱构建完成: graph_id={graph_id}, 节点={node_count}, 边={edge_count}",
+      "m029": "[{task_id}] 图谱构建失败: {e}"
     },
     "bootstrap": {
       "m001": "MiroFish Backend 启动中...",
@@ -929,6 +934,12 @@
       "m004": "请求体: {request}",
       "m005": "响应: {response}",
       "m006": "MiroFish Backend 启动完成"
+    },
+    "retry": {
+      "m001": "函数 {func_name} 在 {max_retries} 次重试后仍失败: {e}",
+      "m002": "异步函数 {func_name} 在 {max_retries} 次重试后仍失败: {e}",
+      "m003": "API调用在 {max_retries} 次重试后仍失败: {e}",
+      "m004": "处理第 {index} 项失败: {e}"
     }
   },
   "report": {

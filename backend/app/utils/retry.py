@@ -9,6 +9,7 @@ import random
 import functools
 from typing import Callable, Any, Optional, Type, Tuple
 from ..utils.logger import get_logger
+from .locale import t
 
 logger = get_logger('mirofish.retry')
 
@@ -52,7 +53,12 @@ def retry_with_backoff(
                     last_exception = e
                     
                     if attempt == max_retries:
-                        logger.error(f"函数 {func.__name__} 在 {max_retries} 次重试后仍失败: {str(e)}")
+                        logger.error(t(
+                            "log.retry.m001",
+                            func_name=func.__name__,
+                            max_retries=max_retries,
+                            e=str(e),
+                        ))
                         raise
                     
                     # Compute the next delay, capped at ``max_delay``.
@@ -103,7 +109,12 @@ def retry_with_backoff_async(
                     last_exception = e
                     
                     if attempt == max_retries:
-                        logger.error(f"异步函数 {func.__name__} 在 {max_retries} 次重试后仍失败: {str(e)}")
+                        logger.error(t(
+                            "log.retry.m002",
+                            func_name=func.__name__,
+                            max_retries=max_retries,
+                            e=str(e),
+                        ))
                         raise
                     
                     current_delay = min(delay, max_delay)
@@ -171,7 +182,11 @@ class RetryableAPIClient:
                 last_exception = e
                 
                 if attempt == self.max_retries:
-                    logger.error(f"API调用在 {self.max_retries} 次重试后仍失败: {str(e)}")
+                    logger.error(t(
+                        "log.retry.m003",
+                        max_retries=self.max_retries,
+                        e=str(e),
+                    ))
                     raise
                 
                 current_delay = min(delay, self.max_delay)
@@ -219,7 +234,7 @@ class RetryableAPIClient:
                 results.append(result)
                 
             except Exception as e:
-                logger.error(f"处理第 {idx + 1} 项失败: {str(e)}")
+                logger.error(t("log.retry.m004", index=idx + 1, e=str(e)))
                 failures.append({
                     "index": idx,
                     "item": item,

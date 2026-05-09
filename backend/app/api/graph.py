@@ -382,7 +382,7 @@ def build_graph():
         def build_task():
             build_logger = get_logger('mirofish.build')
             try:
-                build_logger.info(f"[{task_id}] 开始构建图谱...")
+                build_logger.info(t("log.graph_api.m027", task_id=task_id))
                 task_manager.update_task(
                     task_id, 
                     status=TaskStatus.PROCESSING,
@@ -491,7 +491,13 @@ def build_graph():
                 
                 node_count = graph_data.get("node_count", 0)
                 edge_count = graph_data.get("edge_count", 0)
-                build_logger.info(f"[{task_id}] 图谱构建完成: graph_id={graph_id}, 节点={node_count}, 边={edge_count}")
+                build_logger.info(t(
+                    "log.graph_api.m028",
+                    task_id=task_id,
+                    graph_id=graph_id,
+                    node_count=node_count,
+                    edge_count=edge_count,
+                ))
                 
                 # 完成
                 task_manager.update_task(
@@ -510,7 +516,7 @@ def build_graph():
                 
             except Exception as e:
                 # 更新项目状态为失败
-                build_logger.error(f"[{task_id}] 图谱构建失败: {str(e)}")
+                build_logger.error(t("log.graph_api.m029", task_id=task_id, e=str(e)))
                 build_logger.debug(traceback.format_exc())
                 
                 project.status = ProjectStatus.FAILED
