@@ -36,6 +36,168 @@ from .ollama_reranker import OllamaReranker
 logger = get_logger('mirofish.graphiti_adapter')
 
 
+# ---------------------------------------------------------------------------
+# Monkey-patch: defensive resolve_extracted_nodes
+#
+# graphiti-core 0.11.6 indexes extracted_nodes[resolution_id] without bounds-
+# checking — when the dedupe LLM hallucinates an id outside [0, len(nodes)),
+# add_episode raises IndexError mid-pipeline and the whole episode (and the
+# rest of the build) fails. The bug is tracked upstream as
+# getzep/graphiti#882; the fix on main uses a stateful unresolved-indices
+# loop that we don't want to backport wholesale. This replacement keeps the
+# original semantics but skips invalid LLM ids and falls through to "treat
+# as new node" for any extracted node the LLM forgot.
+# ---------------------------------------------------------------------------
+_graphiti_patches_installed = False
+
+
+def _install_graphiti_patches() -> None:
+    global _graphiti_patches_installed
+    if _graphiti_patches_installed:
+        return
+
+    from graphiti_core import graphiti as _graphiti_mod
+    from graphiti_core.utils.maintenance import node_operations as _node_ops
+    from graphiti_core.helpers import semaphore_gather
+    from graphiti_core.prompts import prompt_library
+    from graphiti_core.prompts.dedupe_nodes import NodeResolutions
+    from graphiti_core.search.search import search
+    from graphiti_core.search.search_filters import SearchFilters
+    from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
+    from graphiti_core.search.search_config import SearchResults
+    from graphiti_core.nodes import EntityNode, EpisodicNode
+    from graphiti_core.graphiti_types import GraphitiClients
+    from pydantic import BaseModel
+
+    async def _safe_resolve_extracted_nodes(
+        clients,
+        extracted_nodes,
+        episode=None,
+        previous_episodes=None,
+        entity_types=None,
+    ):
+        llm_client = clients.llm_client
+
+        search_results = await semaphore_gather(
+            *[
+                search(
+                    clients=clients,
+                    query=node.name,
+                    group_ids=[node.group_id],
+                    search_filter=SearchFilters(),
+                    config=NODE_HYBRID_SEARCH_RRF,
+                )
+                for node in extracted_nodes
+            ]
+        )
+
+        existing_nodes_lists = [result.nodes for result in search_results]
+        entity_types_dict = entity_types if entity_types is not None else {}
+
+        extracted_nodes_context = [
+            {
+                'id': i,
+                'name': node.name,
+                'entity_type': node.labels,
+                'entity_type_description': (
+                    entity_types_dict.get(
+                        next((item for item in node.labels if item != 'Entity'), '')
+                    ).__doc__
+                    if entity_types_dict.get(
+                        next((item for item in node.labels if item != 'Entity'), '')
+                    )
+                    else 'Default Entity Type'
+                ),
+                'duplication_candidates': [
+                    {
+                        **{
+                            'idx': j,
+                            'name': candidate.name,
+                            'entity_types': candidate.labels,
+                        },
+                        **candidate.attributes,
+                    }
+                    for j, candidate in enumerate(existing_nodes_lists[i])
+                ],
+            }
+            for i, node in enumerate(extracted_nodes)
+        ]
+
+        context = {
+            'extracted_nodes': extracted_nodes_context,
+            'episode_content': episode.content if episode is not None else '',
+            'previous_episodes': [ep.content for ep in previous_episodes]
+            if previous_episodes is not None
+            else [],
+        }
+
+        llm_response = await llm_client.generate_response(
+            prompt_library.dedupe_nodes.nodes(context),
+            response_model=NodeResolutions,
+        )
+
+        node_resolutions = llm_response.get('entity_resolutions', [])
+
+        n_extracted = len(extracted_nodes)
+        resolved_by_index: dict[int, EntityNode] = {}
+        uuid_map: dict[str, str] = {}
+
+        for resolution in node_resolutions:
+            resolution_id = resolution.get('id', -1)
+            duplicate_idx = resolution.get('duplicate_idx', -1)
+
+            if not (0 <= resolution_id < n_extracted):
+                logger.warning(
+                    "Skipping invalid LLM dedupe id %r "
+                    "(valid range 0..%d, received %d resolutions for %d nodes)",
+                    resolution_id, n_extracted - 1, len(node_resolutions), n_extracted,
+                )
+                continue
+
+            extracted_node = extracted_nodes[resolution_id]
+            candidates = existing_nodes_lists[resolution_id]
+            resolved_node = (
+                candidates[duplicate_idx]
+                if 0 <= duplicate_idx < len(candidates)
+                else extracted_node
+            )
+
+            new_name = resolution.get('name')
+            if new_name:
+                resolved_node.name = new_name
+
+            resolved_by_index[resolution_id] = resolved_node
+            uuid_map[extracted_node.uuid] = resolved_node.uuid
+
+        # Any extracted node the LLM forgot: keep it as new (no dedup).
+        # Preserves data instead of silently dropping it.
+        resolved_nodes: list[EntityNode] = []
+        for i, node in enumerate(extracted_nodes):
+            if i in resolved_by_index:
+                resolved_nodes.append(resolved_by_index[i])
+            else:
+                logger.warning(
+                    "LLM dedupe returned no resolution for extracted node "
+                    "id=%d name=%r — keeping as new node",
+                    i, node.name,
+                )
+                resolved_nodes.append(node)
+                uuid_map.setdefault(node.uuid, node.uuid)
+
+        return resolved_nodes, uuid_map
+
+    _node_ops.resolve_extracted_nodes = _safe_resolve_extracted_nodes
+    _graphiti_mod.resolve_extracted_nodes = _safe_resolve_extracted_nodes
+    _graphiti_patches_installed = True
+    logger.info(
+        "Installed defensive resolve_extracted_nodes patch "
+        "(works around graphiti-core IndexError; see getzep/graphiti#882)"
+    )
+
+
+_install_graphiti_patches()
+
+
 class _PassthroughReranker(CrossEncoderClient):
     """Provider-agnostic no-op reranker.
 
