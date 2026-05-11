@@ -38,19 +38,19 @@ class Config:
     NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
     NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
     NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'mirofish123')
-    # Embedding model — override when using non-OpenAI APIs (e.g. Gemini: text-embedding-004)
-    EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
+    # Embedding pipeline — defaults target a local Ollama instance running
+    # `mxbai-embed-large` (1024-dim, matches Graphiti's vector index). Override
+    # any of the three EMBEDDING_* env vars to point at OpenAI, Gemini, or any
+    # other OpenAI-SDK-compatible endpoint. See `.env.example` for snippets.
+    EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'mxbai-embed-large')
+    EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL', 'http://localhost:11434/v1')
+    EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY', 'ollama')
 
     # Graphiti provider switch. Allowed: "openai", "gemini".
-    # "openai" works for any OpenAI-SDK-compatible endpoint (Qwen via Dashscope,
-    # GLM, OpenAI itself). Set to "gemini" to use Google Gemini directly.
+    # "openai" works for any OpenAI-SDK-compatible endpoint (Ollama via its
+    # /v1 surface, Qwen via Dashscope, GLM, OpenAI itself). Set to "gemini"
+    # to use Google Gemini directly.
     GRAPHITI_LLM_PROVIDER = os.environ.get('GRAPHITI_LLM_PROVIDER', 'openai')
-
-    # Optional dedicated embedder credentials. Default to LLM_API_KEY / LLM_BASE_URL.
-    # Useful when chat is Dashscope/Qwen (no OpenAI-compatible embeddings) but the
-    # embedder should target OpenAI directly.
-    EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY')
-    EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL')
 
     # Zep settings (kept for backwards compatibility; deprecated).
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY', '')

@@ -557,6 +557,7 @@
     "fetchingGraphData": "Fetching graph data...",
     "graphBuildComplete": "Graph build complete",
     "buildFailed": "Build failed: {error}",
+    "emptyGraphFailure": "Graph build produced 0 entities for this project. The embedder likely returned vectors of the wrong dimension or the LLM extraction found no entities. Verify EMBEDDING_MODEL produces 1024-dim vectors and that the embedder endpoint is reachable.",
     "startBuildingGraph": "Starting graph build...",
     "graphCreated": "Graph created: {graphId}",
     "ontologySet": "Ontology set",
