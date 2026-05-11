@@ -675,19 +675,33 @@ let lastLoggedConfigStage = ''
 const useCustomRounds = ref(false) // Default: use the auto-derived round count.
 const customMaxRounds = ref(40)   // Default recommendation: 40 rounds.
 
+// Backend stage tokens. Each row maps a backend-emitted stage name to a phase
+// number. Both legacy Chinese display strings and the snake_case identifiers
+// are kept so the watcher remains correct before, during, and after the
+// downstream backend prompt translation (issue #25 / spec
+// i18n-report-agent-prompts). Adding a new stage form is a one-line edit.
+// i18n-allow-block: backend stage tokens; multi-language tolerance per spec
+// i18n-frontend-ui-strings, requirement 4.
+const STAGE_PHASE_MAP = Object.freeze({
+  '生成Agent人设':       1,
+  'generating_profiles': 1,
+  '生成模拟配置':        2,
+  'generating_config':   2,
+  '准备模拟脚本':        2,
+  'copying_scripts':     2,
+})
+// i18n-allow-block-end
+
 // Watch stage to update phase
-watch(currentStage, (newStage) => {
-  if (newStage === '生成Agent人设' || newStage === 'generating_profiles') {
-    phase.value = 1
-  } else if (newStage === '生成模拟配置' || newStage === 'generating_config') {
-    phase.value = 2
-    // Entering the config-generation stage — start polling the config endpoint.
-    if (!configTimer) {
-      addLog(t('log.startGeneratingConfig'))
-      startConfigPolling()
-    }
-  } else if (newStage === '准备模拟脚本' || newStage === 'copying_scripts') {
-    phase.value = 2 // Still part of the config stage.
+watch(currentStage, (newStage, oldStage) => {
+  const newPhase = STAGE_PHASE_MAP[newStage]
+  if (newPhase === undefined) return
+  phase.value = newPhase
+  // Trigger config polling on the transition into phase 2.
+  const wasPhase2 = STAGE_PHASE_MAP[oldStage] === 2
+  if (newPhase === 2 && !wasPhase2 && !configTimer) {
+    addLog(t('log.startGeneratingConfig'))
+    startConfigPolling()
   }
 })
 

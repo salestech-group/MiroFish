@@ -712,15 +712,23 @@ const sendToAgent = async (message) => {
   
   addLog(t('log.sendToAgent', { name: selectedAgent.value.username, message: message.substring(0, 50) }))
   
-  // Build prompt with chat history
+  // Build prompt with chat history. The role labels, separator, and prefix
+  // wording follow the active locale; production Chinese behaviour is
+  // unchanged because zh.json carries the original phrasing byte-for-byte
+  // (including the full-width colon in chatHistoryRoleLine).
   let prompt = message
   if (chatHistory.value.length > 1) {
+    const rolePrompter = t('step5.chatRolePrompter')
+    const roleYou = t('step5.chatRoleYou')
     const historyContext = chatHistory.value
       .filter(msg => msg.content !== message)
       .slice(-6)
-      .map(msg => `${msg.role === 'user' ? '提问者' : '你'}：${msg.content}`)
+      .map(msg => t('step5.chatHistoryRoleLine', {
+        role: msg.role === 'user' ? rolePrompter : roleYou,
+        content: msg.content,
+      }))
       .join('\n')
-    prompt = `以下是我们之前的对话：\n${historyContext}\n\n现在我的新问题是：${message}`
+    prompt = t('step5.chatHistoryPrompt', { history: historyContext, message })
   }
   
   const res = await interviewAgents({
