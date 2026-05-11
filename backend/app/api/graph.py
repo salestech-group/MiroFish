@@ -21,11 +21,15 @@ from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 from ..utils.locale import t
 
-# In-memory cache for graph data to avoid hammering Zep's rate-limited API.
-# Stale cache is served instantly on 429; a background thread refreshes it.
+# In-memory cache for graph data. Originally added for Zep's rate-limited API;
+# Neo4j is local so the cache mostly smooths concurrent polls during a build.
 _graph_data_cache: dict = {}        # graph_id -> {"data": ..., "ts": float}
 _graph_refresh_locks: dict = {}     # graph_id -> threading.Lock (one refresh at a time)
 _GRAPH_CACHE_TTL = 300              # seconds before triggering a background refresh
+# Empty results use a much shorter TTL: during a build, the first poll may land
+# before Graphiti has finished extracting entities, and a 5-minute fresh-cache
+# of {nodes: 0, edges: 0} would mask the real data once it appears.
+_GRAPH_EMPTY_CACHE_TTL = 5
 
 logger = get_logger('mirofish.api')
 
@@ -586,7 +590,14 @@ def get_graph_data(graph_id: str):
     cached = _graph_data_cache.get(graph_id)
     age = time.time() - cached["ts"] if cached else None
 
-    if cached and age < _GRAPH_CACHE_TTL:
+    if cached:
+        data = cached["data"]
+        is_empty = (data.get("node_count", 0) == 0) and (data.get("edge_count", 0) == 0)
+        effective_ttl = _GRAPH_EMPTY_CACHE_TTL if is_empty else _GRAPH_CACHE_TTL
+    else:
+        effective_ttl = _GRAPH_CACHE_TTL
+
+    if cached and age < effective_ttl:
         # Fresh cache — return immediately
         return jsonify({"success": True, "data": cached["data"], "cached": True})
 
