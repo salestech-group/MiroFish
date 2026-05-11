@@ -1,6 +1,7 @@
-"""
-本体生成服务
-接口1：分析文本内容，生成适合社会模拟的实体和关系类型定义
+"""Ontology generation service.
+
+Pipeline step 1: analyze the source text and propose entity and relationship
+types that fit a social-media opinion simulation.
 """
 
 import json
@@ -14,19 +15,19 @@ logger = logging.getLogger(__name__)
 
 
 def _to_pascal_case(name: str) -> str:
-    """将任意格式的名称转换为 PascalCase（如 'works_for' -> 'WorksFor', 'person' -> 'Person'）"""
-    # 按非字母数字字符分割
+    """Convert an arbitrary identifier to PascalCase (e.g. ``works_for`` -> ``WorksFor``)."""
+    # Split on non-alphanumeric separators first.
     parts = re.split(r'[^a-zA-Z0-9]+', name)
-    # 再按 camelCase 边界分割（如 'camelCase' -> ['camel', 'Case']）
+    # Then split on camelCase boundaries (e.g. ``camelCase`` -> ``['camel', 'Case']``).
     words = []
     for part in parts:
         words.extend(re.sub(r'([a-z])([A-Z])', r'\1_\2', part).split('_'))
-    # 每个词首字母大写，过滤空串
+    # Title-case each non-empty word and concatenate.
     result = ''.join(word.capitalize() for word in words if word)
     return result if result else 'Unknown'
 
 
-# 本体生成的系统提示词
+# System prompt template for ontology generation.
 ONTOLOGY_SYSTEM_PROMPT = """You are a professional knowledge-graph ontology designer. Your task is to analyze the supplied text and simulation requirement and design entity types and relationship types suitable for a **social-media public-opinion simulation**.
 
 **Important: you must output valid JSON data and nothing else.**
@@ -174,10 +175,7 @@ B. **Concrete types (8 entries, designed from the text content)**:
 
 
 class OntologyGenerator:
-    """
-    本体生成器
-    分析文本内容，生成实体和关系类型定义
-    """
+    """Generate an entity- and edge-type ontology from arbitrary input text."""
     
     def __init__(self, llm_client: Optional[LLMClient] = None):
         self.llm_client = llm_client or LLMClient()
@@ -188,18 +186,17 @@ class OntologyGenerator:
         simulation_requirement: str,
         additional_context: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        生成本体定义
-        
+        """Generate an ontology definition.
+
         Args:
-            document_texts: 文档文本列表
-            simulation_requirement: 模拟需求描述
-            additional_context: 额外上下文
-            
+            document_texts: Source document text segments.
+            simulation_requirement: Description of the simulation goal.
+            additional_context: Optional supplemental context.
+
         Returns:
-            本体定义（entity_types, edge_types等）
+            The ontology dict with ``entity_types``, ``edge_types``, and a summary.
         """
-        # 构建用户消息
+        # Compose the user message that frames the LLM request.
         user_message = self._build_user_message(
             document_texts, 
             simulation_requirement,
@@ -213,19 +210,19 @@ class OntologyGenerator:
             {"role": "user", "content": user_message}
         ]
         
-        # 调用LLM
+        # Invoke the LLM.
         result = self.llm_client.chat_json(
             messages=messages,
             temperature=0.3,
             max_tokens=4096
         )
         
-        # 验证和后处理
+        # Validate the LLM response and post-process it.
         result = self._validate_and_process(result)
         
         return result
     
-    # 传给 LLM 的文本最大长度（5万字）
+    # Maximum length of source text passed to the LLM (50k characters).
     MAX_TEXT_LENGTH_FOR_LLM = 50000
     
     def _build_user_message(
@@ -234,13 +231,14 @@ class OntologyGenerator:
         simulation_requirement: str,
         additional_context: Optional[str]
     ) -> str:
-        """构建用户消息"""
-        
-        # 合并文本
+        """Build the user-message string for the ontology LLM call."""
+
+        # Concatenate the source documents into a single string.
         combined_text = "\n\n---\n\n".join(document_texts)
         original_length = len(combined_text)
-        
-        # 如果文本超过5万字，截断（仅影响传给LLM的内容，不影响图谱构建）
+
+        # If the combined text exceeds the LLM input cap, truncate it for the
+        # LLM call only. The full text is still used for graph construction.
         if len(combined_text) > self.MAX_TEXT_LENGTH_FOR_LLM:
             combined_text = combined_text[:self.MAX_TEXT_LENGTH_FOR_LLM]
             combined_text += f"\n\n...(original text is {original_length} characters; only the first {self.MAX_TEXT_LENGTH_FOR_LLM} characters were used for ontology analysis)..."
@@ -275,9 +273,9 @@ Based on the content above, design entity types and relationship types suitable 
         return message
     
     def _validate_and_process(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """验证和后处理结果"""
-        
-        # 确保必要字段存在
+        """Validate and post-process the LLM-generated ontology dict."""
+
+        # Ensure required top-level fields exist.
         if "entity_types" not in result:
             result["entity_types"] = []
         if "edge_types" not in result:
@@ -285,11 +283,12 @@ Based on the content above, design entity types and relationship types suitable 
         if "analysis_summary" not in result:
             result["analysis_summary"] = ""
         
-        # 验证实体类型
-        # 记录原始名称到 PascalCase 的映射，用于后续修正 edge 的 source_targets 引用
+        # Validate entity types.
+        # Track original-name -> PascalCase mapping so edge source_targets
+        # references can be fixed up consistently below.
         entity_name_map = {}
         for entity in result["entity_types"]:
-            # 强制将 entity name 转为 PascalCase（Zep API 要求）
+            # Force entity names to PascalCase (required by the Zep API).
             if "name" in entity:
                 original_name = entity["name"]
                 entity["name"] = _to_pascal_case(original_name)
@@ -300,19 +299,20 @@ Based on the content above, design entity types and relationship types suitable 
                 entity["attributes"] = []
             if "examples" not in entity:
                 entity["examples"] = []
-            # 确保description不超过100字符
+            # Truncate descriptions longer than 100 characters.
             if len(entity.get("description", "")) > 100:
                 entity["description"] = entity["description"][:97] + "..."
-        
-        # 验证关系类型
+
+        # Validate edge types.
         for edge in result["edge_types"]:
-            # 强制将 edge name 转为 SCREAMING_SNAKE_CASE（Zep API 要求）
+            # Force edge names to SCREAMING_SNAKE_CASE (required by the Zep API).
             if "name" in edge:
                 original_name = edge["name"]
                 edge["name"] = original_name.upper()
                 if edge["name"] != original_name:
                     logger.warning(f"Edge type name '{original_name}' auto-converted to '{edge['name']}'")
-            # 修正 source_targets 中的实体名称引用，与转换后的 PascalCase 保持一致
+            # Rewrite source_targets entity-name references to match the
+            # PascalCase-normalized entity names.
             for st in edge.get("source_targets", []):
                 if st.get("source") in entity_name_map:
                     st["source"] = entity_name_map[st["source"]]
@@ -325,11 +325,11 @@ Based on the content above, design entity types and relationship types suitable 
             if len(edge.get("description", "")) > 100:
                 edge["description"] = edge["description"][:97] + "..."
         
-        # Zep API 限制：最多 10 个自定义实体类型，最多 10 个自定义边类型
+        # Zep API caps: at most 10 custom entity types and 10 custom edge types.
         MAX_ENTITY_TYPES = 10
         MAX_EDGE_TYPES = 10
 
-        # 去重：按 name 去重，保留首次出现的
+        # Deduplicate by name, keeping the first occurrence.
         seen_names = set()
         deduped = []
         for entity in result["entity_types"]:
@@ -341,7 +341,7 @@ Based on the content above, design entity types and relationship types suitable 
                 logger.warning(f"Duplicate entity type '{name}' removed during validation")
         result["entity_types"] = deduped
 
-        # 兜底类型定义
+        # Fallback entity-type definitions used when the LLM omits them.
         person_fallback = {
             "name": "Person",
             "description": "Any individual person not fitting other specific person types.",
@@ -362,33 +362,31 @@ Based on the content above, design entity types and relationship types suitable 
             "examples": ["small business", "community group"]
         }
         
-        # 检查是否已有兜底类型
+        # Check whether the fallback types are already present.
         entity_names = {e["name"] for e in result["entity_types"]}
         has_person = "Person" in entity_names
         has_organization = "Organization" in entity_names
-        
-        # 需要添加的兜底类型
+
+        # Collect missing fallback types to add below.
         fallbacks_to_add = []
         if not has_person:
             fallbacks_to_add.append(person_fallback)
         if not has_organization:
             fallbacks_to_add.append(organization_fallback)
-        
+
         if fallbacks_to_add:
             current_count = len(result["entity_types"])
             needed_slots = len(fallbacks_to_add)
-            
-            # 如果添加后会超过 10 个，需要移除一些现有类型
+
+            # If adding the fallbacks would exceed the cap, drop some existing types.
             if current_count + needed_slots > MAX_ENTITY_TYPES:
-                # 计算需要移除多少个
                 to_remove = current_count + needed_slots - MAX_ENTITY_TYPES
-                # 从末尾移除（保留前面更重要的具体类型）
+                # Drop trailing types first; the more specific types come earlier.
                 result["entity_types"] = result["entity_types"][:-to_remove]
-            
-            # 添加兜底类型
+
             result["entity_types"].extend(fallbacks_to_add)
-        
-        # 最终确保不超过限制（防御性编程）
+
+        # Defensive cap enforcement: hard-trim if anything slipped through.
         if len(result["entity_types"]) > MAX_ENTITY_TYPES:
             result["entity_types"] = result["entity_types"][:MAX_ENTITY_TYPES]
         
@@ -398,14 +396,13 @@ Based on the content above, design entity types and relationship types suitable 
         return result
     
     def generate_python_code(self, ontology: Dict[str, Any]) -> str:
-        """
-        将本体定义转换为Python代码（类似ontology.py）
-        
+        """Render the ontology definition as Python source code.
+
         Args:
-            ontology: 本体定义
-            
+            ontology: Ontology definition dict.
+
         Returns:
-            Python代码字符串
+            Python source code as a single string.
         """
         code_lines = [
             '"""',
@@ -421,7 +418,7 @@ Based on the content above, design entity types and relationship types suitable 
             '',
         ]
         
-        # 生成实体类型
+        # Emit each entity type as a Python class.
         for entity in ontology.get("entity_types", []):
             name = entity["name"]
             desc = entity.get("description", f"A {name} entity.")
@@ -447,10 +444,10 @@ Based on the content above, design entity types and relationship types suitable 
         code_lines.append('# ============== 关系类型定义 ==============')
         code_lines.append('')
         
-        # 生成关系类型
+        # Emit each edge type as a Python class.
         for edge in ontology.get("edge_types", []):
             name = edge["name"]
-            # 转换为PascalCase类名
+            # Convert SCREAMING_SNAKE_CASE -> PascalCase for the class name.
             class_name = ''.join(word.capitalize() for word in name.split('_'))
             desc = edge.get("description", f"A {name} relationship.")
             
@@ -472,7 +469,7 @@ Based on the content above, design entity types and relationship types suitable 
             code_lines.append('')
             code_lines.append('')
         
-        # 生成类型字典
+        # Emit the type registries.
         code_lines.append('# ============== 类型配置 ==============')
         code_lines.append('')
         code_lines.append('ENTITY_TYPES = {')
@@ -489,7 +486,7 @@ Based on the content above, design entity types and relationship types suitable 
         code_lines.append('}')
         code_lines.append('')
         
-        # 生成边的source_targets映射
+        # Emit the edge source_targets map.
         code_lines.append('EDGE_SOURCE_TARGETS = {')
         for edge in ontology.get("edge_types", []):
             name = edge["name"]
