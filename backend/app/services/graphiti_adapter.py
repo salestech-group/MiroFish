@@ -132,6 +132,7 @@ def _build_llm_and_embedder(provider: str):
                 api_key=Config.LLM_API_KEY,
                 base_url=Config.LLM_BASE_URL,
                 model=Config.LLM_MODEL_NAME,
+                small_model=Config.LLM_SMALL_MODEL_NAME,
             )
         )
         embedder = OpenAIEmbedder(

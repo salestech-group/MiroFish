@@ -33,6 +33,11 @@ class Config:
     LLM_API_KEY = os.environ.get('LLM_API_KEY')
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
+    # Optional smaller/cheaper model used by Graphiti for simpler extraction
+    # prompts (ModelSize.small). Defaults to LLM_MODEL_NAME so non-OpenAI
+    # backends (Qwen/Dashscope, GLM, Ollama via /v1, ...) don't fall through
+    # to Graphiti's hard-coded `gpt-4.1-nano`, which would 404.
+    LLM_SMALL_MODEL_NAME = os.environ.get('LLM_SMALL_MODEL_NAME') or os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
 
     # Neo4j + Graphiti settings (replacement for Zep Cloud).
     NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
