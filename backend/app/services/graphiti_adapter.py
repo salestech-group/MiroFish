@@ -31,6 +31,7 @@ from graphiti_core.cross_encoder.client import CrossEncoderClient
 
 from ..config import Config
 from ..utils.logger import get_logger
+from .ollama_reranker import OllamaReranker
 
 logger = get_logger('mirofish.graphiti_adapter')
 
@@ -42,7 +43,9 @@ class _PassthroughReranker(CrossEncoderClient):
     descending scores. Injected explicitly so Graphiti does not fall back
     to its default ``OpenAIRerankerClient`` (which uses a hard-coded
     ``gpt-4.1-nano`` model with logprobs and would 401 against Qwen /
-    Dashscope keys). A real per-provider reranker is a follow-up.
+    Dashscope keys). Selected when ``Config.RERANKER_PROVIDER == "none"``
+    — useful for CI / slim containers that cannot pull the reranker model.
+    For real reranking, set ``RERANKER_PROVIDER=ollama`` (the default).
     """
 
     async def rank(self, query: str, passages: list[str]) -> list[tuple[str, float]]:
@@ -87,6 +90,31 @@ _graphiti_lock = threading.Lock()
 
 
 _ALLOWED_GRAPHITI_PROVIDERS = ("openai", "gemini")
+_ALLOWED_RERANKER_PROVIDERS = ("ollama", "none")
+
+
+def _build_reranker(provider: str) -> CrossEncoderClient:
+    """Build the cross-encoder reranker for the configured provider.
+
+    Defers to ``_PassthroughReranker`` when ``provider`` is ``"none"``
+    (the legacy no-op behaviour, useful for CI / slim containers that
+    cannot pull the reranker model). For ``"ollama"`` it constructs the
+    real Ollama-backed reranker; the construction is side-effect-free, so
+    Graphiti initialisation does not depend on the Ollama daemon being
+    reachable at startup.
+    """
+    if provider == "none":
+        return _PassthroughReranker()
+    if provider == "ollama":
+        return OllamaReranker(
+            model=Config.RERANKER_MODEL,
+            base_url=Config.RERANKER_BASE_URL,
+            api_key=Config.RERANKER_API_KEY,
+        )
+    raise ValueError(
+        f"Unknown RERANKER_PROVIDER={provider!r}; "
+        f"allowed: {_ALLOWED_RERANKER_PROVIDERS}"
+    )
 
 
 def _build_llm_and_embedder(provider: str):
@@ -146,14 +174,19 @@ def _get_graphiti() -> Graphiti:
             if _graphiti_instance is None:
                 provider = (Config.GRAPHITI_LLM_PROVIDER or "openai").lower()
                 logger.info(f"Initializing Graphiti client (provider={provider})...")
+                reranker_provider = (Config.RERANKER_PROVIDER or "ollama").lower()
+                logger.info(
+                    f"Initializing Graphiti reranker (provider={reranker_provider})..."
+                )
                 llm_client, embedder = _build_llm_and_embedder(provider)
+                cross_encoder = _build_reranker(reranker_provider)
                 g = Graphiti(
                     Config.NEO4J_URI,
                     Config.NEO4J_USER,
                     Config.NEO4J_PASSWORD,
                     llm_client=llm_client,
                     embedder=embedder,
-                    cross_encoder=_PassthroughReranker(),
+                    cross_encoder=cross_encoder,
                 )
                 # Use the persistent loop so the driver is bound to it from the start
                 _run(g.build_indices_and_constraints())

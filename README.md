@@ -137,11 +137,12 @@ neo4j-admin dbms set-initial-password your_neo4j_password
 neo4j start
 ```
 
-**Install Ollama and pull the default embedding model:**
+**Install Ollama and pull the default models:**
 
 ```bash
 # macOS / Linux: https://ollama.com/download
-ollama pull mxbai-embed-large
+ollama pull mxbai-embed-large   # embedder for the knowledge graph
+ollama pull qwen2.5:3b          # reranker for Graphiti search results
 # Ollama serves the OpenAI-compatible /v1 endpoint on http://localhost:11434
 # by default — no further configuration required.
 ```
@@ -180,6 +181,17 @@ NEO4J_PASSWORD=your_neo4j_password
 EMBEDDING_BASE_URL=http://localhost:11434/v1
 EMBEDDING_API_KEY=ollama
 EMBEDDING_MODEL=mxbai-embed-large
+
+# Reranker — reorders Graphiti search results before the report tools see them.
+# Default targets the same local Ollama host used for embeddings.
+# Pre-requisite for the default: `ollama pull qwen2.5:3b`.
+# Set RERANKER_PROVIDER=none to keep the legacy passthrough (useful for CI /
+# slim containers that cannot pull a reranker model).
+RERANKER_PROVIDER=ollama
+RERANKER_MODEL=qwen2.5:3b
+# Optional — both default to the EMBEDDING_* equivalents when unset.
+# RERANKER_BASE_URL=http://localhost:11434/v1
+# RERANKER_API_KEY=ollama
 
 # Embeddings — remote fallback (uncomment ONE block if you prefer not to run
 # Ollama locally). Note: any override must produce 1024-dim vectors to match

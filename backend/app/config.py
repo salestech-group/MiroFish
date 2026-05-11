@@ -52,6 +52,24 @@ class Config:
     # to use Google Gemini directly.
     GRAPHITI_LLM_PROVIDER = os.environ.get('GRAPHITI_LLM_PROVIDER', 'openai')
 
+    # Reranker (cross-encoder) settings. The reranker reorders Graphiti search
+    # results before they reach the ReportAgent tools. Defaults target the same
+    # local Ollama host used for embeddings; setting RERANKER_PROVIDER=none
+    # disables reranking and keeps the legacy passthrough (useful for CI or
+    # slim containers that cannot pull the reranker model). RERANKER_BASE_URL
+    # and RERANKER_API_KEY chain through EMBEDDING_BASE_URL / EMBEDDING_API_KEY
+    # so a single-host Ollama deployment needs no extra configuration.
+    RERANKER_PROVIDER = os.environ.get('RERANKER_PROVIDER', 'ollama')
+    RERANKER_MODEL = os.environ.get('RERANKER_MODEL', 'qwen2.5:3b')
+    RERANKER_BASE_URL = os.environ.get(
+        'RERANKER_BASE_URL',
+        os.environ.get('EMBEDDING_BASE_URL', 'http://localhost:11434/v1'),
+    )
+    RERANKER_API_KEY = os.environ.get(
+        'RERANKER_API_KEY',
+        os.environ.get('EMBEDDING_API_KEY', 'ollama'),
+    )
+
     # Zep settings (kept for backwards compatibility; deprecated).
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY', '')
 
