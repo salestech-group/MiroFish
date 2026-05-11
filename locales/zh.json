@@ -557,6 +557,7 @@
     "fetchingGraphData": "获取图谱数据...",
     "graphBuildComplete": "图谱构建完成",
     "buildFailed": "构建失败: {error}",
+    "emptyGraphFailure": "图谱构建后该项目未写入任何实体节点。嵌入器可能返回了维度不匹配的向量，或者大模型未能提取出实体。请确认 EMBEDDING_MODEL 输出 1024 维向量，且嵌入服务可访问。",
     "startBuildingGraph": "开始构建图谱...",
     "graphCreated": "图谱已创建: {graphId}",
     "ontologySet": "本体已设置",

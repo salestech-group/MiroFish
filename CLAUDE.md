@@ -69,15 +69,20 @@ LLM_MODEL_NAME           # Default: qwen-plus
 NEO4J_URI                # Default: bolt://localhost:7687
 NEO4J_USER               # Default: neo4j
 NEO4J_PASSWORD           # Default: mirofish123 (override in real env)
-EMBEDDING_MODEL          # Default: text-embedding-3-small (OpenAI)
+EMBEDDING_MODEL          # Default: mxbai-embed-large  (local Ollama, 1024-dim)
+EMBEDDING_BASE_URL       # Default: http://localhost:11434/v1
+EMBEDDING_API_KEY        # Default: "ollama"  (Ollama ignores the value)
                          # Other supported configurations:
-                         #   • Gemini:  text-embedding-004
-                         #   • Ollama:  mxbai-embed-large
-                         #             (also set EMBEDDING_BASE_URL / EMBEDDING_API_KEY;
-                         #              see .env.example for the full snippet)
+                         #   • OpenAI:  text-embedding-3-small  (only if you accept
+                         #             a remote dependency; set EMBEDDING_BASE_URL
+                         #             to https://api.openai.com/v1 and
+                         #             EMBEDDING_API_KEY to your OpenAI key)
+                         #   • Gemini:  text-embedding-004 / gemini-embedding-001
+                         #             (set GRAPHITI_LLM_PROVIDER=gemini)
                          # Constraint: model must produce 1024-dim vectors to match
                          # Graphiti's default EMBEDDING_DIM. 768-dim models such as
                          # nomic-embed-text are not supported.
+                         # Prerequisite for the default: `ollama pull mxbai-embed-large`.
 
 # Optional — Accelerated LLM (omit entirely if not used)
 LLM_BOOST_API_KEY

@@ -18,6 +18,9 @@ from ..models.task import TaskManager, TaskStatus
 from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
 from .text_processor import TextProcessor
 from ..utils.locale import t, get_locale, set_locale
+from ..utils.logger import get_logger
+
+logger = get_logger('mirofish.graph_builder')
 
 
 def _classify_entity_type(name: str, summary: str, ontology: Optional[Dict]) -> str:
@@ -217,6 +220,19 @@ class GraphBuilderService:
             )
             
             graph_info = self._get_graph_info(graph_id)
+
+            # Symmetric "non-zero entities" gate matching _recover_stuck_projects:
+            # if add_batch returned cleanly but Graphiti wrote no entities (e.g.,
+            # the embedder swallowed input or produced wrong-dim vectors that the
+            # Neo4j index rejected without raising), surface a loud failure instead
+            # of marking the task COMPLETED on an empty graph.
+            if graph_info.node_count == 0:
+                logger.error(
+                    "graph build produced 0 entities for group_id=%s (task=%s)",
+                    graph_id, task_id,
+                )
+                self.task_manager.fail_task(task_id, t('progress.emptyGraphFailure'))
+                return
 
             self.task_manager.complete_task(task_id, {
                 "graph_id": graph_id,

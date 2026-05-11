@@ -118,6 +118,7 @@ Reads `.env` from the project root, exposes ports `3000` (frontend) and `5001` (
 | **Python** | ≥3.11, ≤3.12 | Backend runtime | `python --version` |
 | **uv** | Latest | Python package manager | `uv --version` |
 | **Neo4j** | 5.x Community | Local knowledge graph database | `neo4j --version` |
+| **Ollama** | Latest | Local embedder host (default `mxbai-embed-large`) | `ollama --version` |
 
 **Install Neo4j (choose one):**
 
@@ -135,6 +136,18 @@ brew install neo4j
 neo4j-admin dbms set-initial-password your_neo4j_password
 neo4j start
 ```
+
+**Install Ollama and pull the default embedding model:**
+
+```bash
+# macOS / Linux: https://ollama.com/download
+ollama pull mxbai-embed-large
+# Ollama serves the OpenAI-compatible /v1 endpoint on http://localhost:11434
+# by default — no further configuration required.
+```
+
+> If you prefer to run a remote embedder (OpenAI / Gemini), see the commented
+> fallback block below; Ollama is the default but is not mandatory.
 
 #### 1. Configure Environment Variables
 
@@ -160,16 +173,26 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_neo4j_password
 
-# Embedding model (uncomment if using a non-OpenAI provider, e.g. Gemini)
-# EMBEDDING_MODEL=gemini-embedding-001
-
-# Embedding model via local Ollama (free, no API key, OpenAI-compatible endpoint).
+# Embeddings — default: local Ollama, free, no API key, OpenAI-compatible endpoint.
 # Pre-requisite: `ollama pull mxbai-embed-large` (1024-dim, matches Graphiti).
 # In Docker, host.docker.internal:11434 reaches the host daemon; in host mode
-# (`npm run dev`) substitute http://localhost:11434/v1.
-# EMBEDDING_BASE_URL=http://host.docker.internal:11434/v1
-# EMBEDDING_API_KEY=ollama
-# EMBEDDING_MODEL=mxbai-embed-large
+# (`npm run dev`) keep http://localhost:11434/v1 as below.
+EMBEDDING_BASE_URL=http://localhost:11434/v1
+EMBEDDING_API_KEY=ollama
+EMBEDDING_MODEL=mxbai-embed-large
+
+# Embeddings — remote fallback (uncomment ONE block if you prefer not to run
+# Ollama locally). Note: any override must produce 1024-dim vectors to match
+# Graphiti's vector index — 768-dim models (e.g. nomic-embed-text) are NOT
+# supported.
+#
+# OpenAI:
+# EMBEDDING_BASE_URL=https://api.openai.com/v1
+# EMBEDDING_API_KEY=your_openai_api_key
+# EMBEDDING_MODEL=text-embedding-3-small
+#
+# Gemini (set GRAPHITI_LLM_PROVIDER=gemini in this case):
+# EMBEDDING_MODEL=gemini-embedding-001
 ```
 
 **Embedder smoke test (recommended before the first graph build):**
