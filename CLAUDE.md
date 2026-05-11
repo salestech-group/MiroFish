@@ -84,6 +84,17 @@ EMBEDDING_API_KEY        # Default: "ollama"  (Ollama ignores the value)
                          # nomic-embed-text are not supported.
                          # Prerequisite for the default: `ollama pull mxbai-embed-large`.
 
+# Reranker (cross-encoder for Graphiti search results)
+RERANKER_PROVIDER        # Default: ollama  (allowed: "ollama", "none")
+                         # "none" keeps the legacy passthrough — useful for CI /
+                         # slim containers that cannot pull a reranker model.
+RERANKER_MODEL           # Default: qwen2.5:3b  (local Ollama chat model)
+                         # Prerequisite for the default: `ollama pull qwen2.5:3b`.
+RERANKER_BASE_URL        # Default: value of EMBEDDING_BASE_URL
+                         # (typically http://localhost:11434/v1)
+RERANKER_API_KEY         # Default: value of EMBEDDING_API_KEY
+                         # (Ollama ignores the value)
+
 # Optional — Accelerated LLM (omit entirely if not used)
 LLM_BOOST_API_KEY
 LLM_BOOST_BASE_URL

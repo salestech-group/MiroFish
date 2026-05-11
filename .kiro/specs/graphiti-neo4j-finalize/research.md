@@ -24,7 +24,7 @@
 - **Context**: Ticket suggests dropping `_GeminiReranker` and "letting Graphiti use its sane default." Verify the default is sane for Qwen.
 - **Sources Consulted**: `graphiti_core/graphiti.py:154`, `graphiti_core/cross_encoder/openai_reranker_client.py`.
 - **Findings**: Default is `OpenAIRerankerClient()` with no config → tries `AsyncOpenAI(api_key=None, base_url=None)` → 401 against any non-OpenAI key. Reranker model is fixed to `gpt-4.1-nano`, which Dashscope does not host.
-- **Implications**: Cannot rely on Graphiti's default. Continue to inject an explicit passthrough reranker so Qwen users do not silently 401 in search code paths. A real per-provider reranker is out of scope (would need a custom OpenAI-compatible logprobs implementation, which Dashscope/Qwen does not reliably support).
+- **Implications**: Cannot rely on Graphiti's default. Continue to inject an explicit passthrough reranker so Qwen users do not silently 401 in search code paths. A real per-provider reranker was out of scope for this spec; follow-up spec `graphiti-ollama-reranker` (ticket #39) replaces the passthrough with an Ollama-backed `CrossEncoderClient` and keeps `_PassthroughReranker` only when `RERANKER_PROVIDER=none`.
 
 ### Env-guard hook scope
 - **Context**: First Read of `.env.example` was blocked.

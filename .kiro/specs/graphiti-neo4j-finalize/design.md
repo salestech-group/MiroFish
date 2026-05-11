@@ -16,7 +16,7 @@
 - `.env.example` matches what the code reads; the README is unchanged (already correct).
 
 ### Non-Goals
-- Implementing a real per-provider reranker (deferred to a follow-up).
+- Implementing a real per-provider reranker (deferred to a follow-up — shipped in `graphiti-ollama-reranker`, ticket #39).
 - Pagination cleanup of `_NodeNamespace.get_by_graph_id` / `_EdgeNamespace.get_by_graph_id` (low priority, deferred).
 - Renaming `zep_*` files (tracked separately).
 - Migrating data from existing Zep Cloud deployments (project is local-only by design now).
@@ -336,7 +336,7 @@ class _PassthroughReranker(CrossEncoderClient):
 **Implementation Notes**
 - Integration: Always injected by `_get_graphiti()` regardless of provider.
 - Validation: None.
-- Risks: Search results are still un-reranked. Same behaviour as today; future ticket may introduce a real per-provider reranker.
+- Risks: Search results are still un-reranked. Same behaviour as today; superseded by follow-up spec `graphiti-ollama-reranker` (ticket #39), which introduces a real Ollama-backed reranker and keeps this passthrough only when `RERANKER_PROVIDER=none`.
 
 #### `_get_graphiti()` (refactored)
 

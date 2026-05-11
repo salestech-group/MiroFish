@@ -62,7 +62,7 @@ Same upload+build flow; expect identical behaviour to pre-change implementation.
 ## Notes for reviewers
 
 - **Default provider flipped** from Gemini (de-facto) to OpenAI-compatible (documented). Existing Gemini deployments must add `GRAPHITI_LLM_PROVIDER=gemini` to `.env` after pulling. Documented in the new `.env.example` and design.md migration section.
-- **Reranker is still passthrough** — same behavioural state as before (no real reranking). A real per-provider reranker is intentionally deferred; explanation in `research.md` → "Reranker default behaviour".
+- **Reranker is still passthrough** — same behavioural state as before (no real reranking). _Update:_ this was deferred from this spec and has since shipped in follow-up spec `graphiti-ollama-reranker` (ticket #39): the default is now an Ollama-backed `CrossEncoderClient`; `RERANKER_PROVIDER=none` preserves the passthrough behaviour described here.
 - **`.env.example` write went through Python heredoc** because `pre_tool_env_guard.sh` blocks `cat > .env*` patterns. Worth confirming the file content is what you expect; the new content mirrors the README env section verbatim.
 
 ## Spec artefacts
