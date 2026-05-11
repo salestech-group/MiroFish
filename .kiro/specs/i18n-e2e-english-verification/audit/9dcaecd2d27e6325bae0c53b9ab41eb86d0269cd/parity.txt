@@ -1,0 +1,13 @@
+# Locale parity for HEAD
+# en keys: 953
+# zh keys: 953
+
+[missing-keys]
+# (none)
+
+[cjk-in-en]
+# (none)
+
+[identical-values]
+# (none)
+

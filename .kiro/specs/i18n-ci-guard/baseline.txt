@@ -1,0 +1,5 @@
+# Per-path CJK baseline for the i18n CI guard.
+# Format: <path>\t<count>. Sorted lexicographically.
+# Refresh via: python scripts/ci/i18n_cjk_guard.py --update-baseline
+backend/app	307
+frontend/src	124
