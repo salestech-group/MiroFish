@@ -37,16 +37,20 @@ logger = get_logger('mirofish.graphiti_adapter')
 
 
 # ---------------------------------------------------------------------------
-# Monkey-patch: defensive resolve_extracted_nodes
+# Monkey-patches: defensive node_operations
 #
-# graphiti-core 0.11.6 indexes extracted_nodes[resolution_id] without bounds-
-# checking — when the dedupe LLM hallucinates an id outside [0, len(nodes)),
-# add_episode raises IndexError mid-pipeline and the whole episode (and the
-# rest of the build) fails. The bug is tracked upstream as
-# getzep/graphiti#882; the fix on main uses a stateful unresolved-indices
-# loop that we don't want to backport wholesale. This replacement keeps the
-# original semantics but skips invalid LLM ids and falls through to "treat
-# as new node" for any extracted node the LLM forgot.
+# graphiti-core 0.11.6 indexes into per-call lists using ids produced by the
+# LLM without bounds-checking. When a non-OpenAI backend (Qwen/GLM/Ollama)
+# hallucinates an out-of-range id, add_episode raises IndexError mid-pipeline
+# and the whole episode (plus the rest of the build) fails.
+#
+# Two sites are affected:
+#   • resolve_extracted_nodes — indexes extracted_nodes[resolution_id]
+#     (tracked upstream as getzep/graphiti#882)
+#   • extract_nodes — indexes entity_types_context[entity_type_id]
+#
+# Both are patched here. The replacements preserve original semantics but
+# skip / fall back on invalid ids (logging a warning) instead of raising.
 # ---------------------------------------------------------------------------
 _graphiti_patches_installed = False
 
@@ -56,17 +60,21 @@ def _install_graphiti_patches() -> None:
     if _graphiti_patches_installed:
         return
 
+    from time import time as _time
+
     from graphiti_core import graphiti as _graphiti_mod
     from graphiti_core.utils.maintenance import node_operations as _node_ops
     from graphiti_core.helpers import semaphore_gather
     from graphiti_core.prompts import prompt_library
     from graphiti_core.prompts.dedupe_nodes import NodeResolutions
+    from graphiti_core.prompts.extract_nodes import ExtractedEntities, ExtractedEntity
     from graphiti_core.search.search import search
     from graphiti_core.search.search_filters import SearchFilters
     from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
     from graphiti_core.search.search_config import SearchResults
-    from graphiti_core.nodes import EntityNode, EpisodicNode
+    from graphiti_core.nodes import EntityNode, EpisodeType, EpisodicNode
     from graphiti_core.graphiti_types import GraphitiClients
+    from graphiti_core.utils.datetime_utils import utc_now
     from pydantic import BaseModel
 
     async def _safe_resolve_extracted_nodes(
@@ -186,12 +194,140 @@ def _install_graphiti_patches() -> None:
 
         return resolved_nodes, uuid_map
 
+    async def _safe_extract_nodes(
+        clients,
+        episode,
+        previous_episodes,
+        entity_types=None,
+    ):
+        llm_client = clients.llm_client
+        start = _time()
+        llm_response: dict = {}
+        custom_prompt = ''
+        entities_missed = True
+        reflexion_iterations = 0
+
+        entity_types_context = [
+            {
+                'entity_type_id': 0,
+                'entity_type_name': 'Entity',
+                'entity_type_description': (
+                    'Default entity classification. Use this entity type if '
+                    'the entity is not one of the other listed types.'
+                ),
+            }
+        ]
+        if entity_types is not None:
+            entity_types_context += [
+                {
+                    'entity_type_id': i + 1,
+                    'entity_type_name': type_name,
+                    'entity_type_description': type_model.__doc__,
+                }
+                for i, (type_name, type_model) in enumerate(entity_types.items())
+            ]
+
+        context = {
+            'episode_content': episode.content,
+            'episode_timestamp': episode.valid_at.isoformat(),
+            'previous_episodes': [ep.content for ep in previous_episodes],
+            'custom_prompt': custom_prompt,
+            'entity_types': entity_types_context,
+            'source_description': episode.source_description,
+        }
+
+        extracted_entities: list = []
+
+        max_iters = _node_ops.MAX_REFLEXION_ITERATIONS
+        while entities_missed and reflexion_iterations <= max_iters:
+            if episode.source == EpisodeType.message:
+                llm_response = await llm_client.generate_response(
+                    prompt_library.extract_nodes.extract_message(context),
+                    response_model=ExtractedEntities,
+                )
+            elif episode.source == EpisodeType.text:
+                llm_response = await llm_client.generate_response(
+                    prompt_library.extract_nodes.extract_text(context),
+                    response_model=ExtractedEntities,
+                )
+            elif episode.source == EpisodeType.json:
+                llm_response = await llm_client.generate_response(
+                    prompt_library.extract_nodes.extract_json(context),
+                    response_model=ExtractedEntities,
+                )
+
+            extracted_entities = [
+                ExtractedEntity(**raw_entity)
+                for raw_entity in llm_response.get('extracted_entities', [])
+            ]
+
+            reflexion_iterations += 1
+            if reflexion_iterations < max_iters:
+                missing_entities = await _node_ops.extract_nodes_reflexion(
+                    llm_client,
+                    episode,
+                    previous_episodes,
+                    [entity.name for entity in extracted_entities],
+                )
+
+                entities_missed = len(missing_entities) != 0
+
+                custom_prompt = 'Make sure that the following entities are extracted: '
+                for entity in missing_entities:
+                    custom_prompt += f'\n{entity},'
+
+        filtered_extracted_entities = [
+            entity for entity in extracted_entities if entity.name.strip()
+        ]
+        end = _time()
+        logger.debug(
+            'Extracted new nodes: %s in %f ms',
+            filtered_extracted_entities, (end - start) * 1000,
+        )
+
+        n_types = len(entity_types_context)
+        extracted_nodes: list[EntityNode] = []
+        for extracted_entity in filtered_extracted_entities:
+            entity_type_id = extracted_entity.entity_type_id
+            if 0 <= entity_type_id < n_types:
+                entity_type_name = entity_types_context[entity_type_id].get(
+                    'entity_type_name'
+                )
+            else:
+                logger.warning(
+                    "LLM returned invalid entity_type_id=%r for entity %r "
+                    "(valid range 0..%d) — falling back to 'Entity'",
+                    entity_type_id, extracted_entity.name, n_types - 1,
+                )
+                entity_type_name = 'Entity'
+
+            labels: list[str] = list({'Entity', str(entity_type_name)})
+
+            new_node = EntityNode(
+                name=extracted_entity.name,
+                group_id=episode.group_id,
+                labels=labels,
+                summary='',
+                created_at=utc_now(),
+            )
+            extracted_nodes.append(new_node)
+            logger.debug('Created new node: %s (UUID: %s)', new_node.name, new_node.uuid)
+
+        logger.debug(
+            'Extracted nodes: %s',
+            [(n.name, n.uuid) for n in extracted_nodes],
+        )
+        return extracted_nodes
+
     _node_ops.resolve_extracted_nodes = _safe_resolve_extracted_nodes
     _graphiti_mod.resolve_extracted_nodes = _safe_resolve_extracted_nodes
+    _node_ops.extract_nodes = _safe_extract_nodes
+    _graphiti_mod.extract_nodes = _safe_extract_nodes
     _graphiti_patches_installed = True
     logger.info(
-        "Installed defensive resolve_extracted_nodes patch "
-        "(works around graphiti-core IndexError; see getzep/graphiti#882)"
+        "Installed defensive node_operations patches "
+        "(extract_nodes + resolve_extracted_nodes; work around graphiti-core "
+        "IndexError; see getzep/graphiti#882)"
     )
 
 
