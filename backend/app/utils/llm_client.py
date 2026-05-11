@@ -1,6 +1,6 @@
-"""
-LLM客户端封装
-统一使用OpenAI格式调用
+"""LLM client wrapper.
+
+All providers are called through the OpenAI-compatible API surface.
 """
 
 import json
@@ -13,7 +13,7 @@ from ..config import Config
 
 
 class LLMClient:
-    """LLM客户端"""
+    """Thin wrapper around the OpenAI-compatible chat completions API."""
 
     def __init__(
         self,
@@ -37,17 +37,16 @@ class LLMClient:
         max_tokens: int = 4096,
         response_format: Optional[Dict] = None,
     ) -> str:
-        """
-        发送聊天请求
+        """Send a chat completion request.
 
         Args:
-            messages: 消息列表
-            temperature: 温度参数
-            max_tokens: 最大token数
-            response_format: 响应格式（如JSON模式）
+            messages: Chat messages in OpenAI format.
+            temperature: Sampling temperature.
+            max_tokens: Maximum number of tokens to generate.
+            response_format: Optional response format hint (e.g. JSON mode).
 
         Returns:
-            模型响应文本
+            The assistant's response text.
         """
         kwargs = {
             "model": self.model,
@@ -61,7 +60,7 @@ class LLMClient:
 
         response = self.client.chat.completions.create(**kwargs)
         content = response.choices[0].message.content
-        # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
+        # Some reasoning models (e.g. MiniMax M2.5) embed <think>...</think> blocks; strip them.
         content = re.sub(r"<think>[\s\S]*?</think>", "", content).strip()
         return content
 
@@ -79,7 +78,7 @@ class LLMClient:
                 messages=messages, temperature=temperature, max_tokens=max_tokens
             )
 
-        # 清理markdown代码块标记
+        # Strip surrounding markdown code-fence markers if present.
         cleaned_response = response.strip()
         cleaned_response = re.sub(
             r"^```(?:json)?\s*\n?", "", cleaned_response, flags=re.IGNORECASE

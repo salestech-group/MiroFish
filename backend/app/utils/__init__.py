@@ -1,6 +1,4 @@
-"""
-工具模块
-"""
+"""Backend utilities package."""
 
 from .file_parser import FileParser
 from .llm_client import LLMClient
