@@ -377,7 +377,7 @@ def _get_loop() -> asyncio.AbstractEventLoop:
 def _run(coro):
     """Submit coroutine to the persistent event loop thread and wait for result."""
     future = asyncio.run_coroutine_threadsafe(coro, _get_loop())
-    return future.result(timeout=300)
+    return future.result(timeout=1800)
 
 
 # ---------------------------------------------------------------------------
