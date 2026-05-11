@@ -374,15 +374,15 @@ class OasisProfileGenerator:
                     if hasattr(node, 'summary') and node.summary:
                         all_summaries.add(node.summary)
                     if hasattr(node, 'name') and node.name and node.name != entity_name:
-                        all_summaries.add(f"相关实体: {node.name}")
+                        all_summaries.add(f"Related entity: {node.name}")
             results["node_summaries"] = list(all_summaries)
 
             # Assemble the combined context block.
             context_parts = []
             if results["facts"]:
-                context_parts.append("事实信息:\n" + "\n".join(f"- {f}" for f in results["facts"][:20]))
+                context_parts.append("Facts:\n" + "\n".join(f"- {f}" for f in results["facts"][:20]))
             if results["node_summaries"]:
-                context_parts.append("相关实体:\n" + "\n".join(f"- {s}" for s in results["node_summaries"][:10]))
+                context_parts.append("Related entities:\n" + "\n".join(f"- {s}" for s in results["node_summaries"][:10]))
             results["context"] = "\n\n".join(context_parts)
             
             logger.info(t("log.profile_generator.m006", entity_name=entity_name, len=len(results['facts']), len_2=len(results['node_summaries'])))
@@ -411,7 +411,7 @@ class OasisProfileGenerator:
                 if value and str(value).strip():
                     attrs.append(f"- {key}: {value}")
             if attrs:
-                context_parts.append("### 实体属性\n" + "\n".join(attrs))
+                context_parts.append("### Entity attributes\n" + "\n".join(attrs))
         
         # 2. Related edges (facts / relationships).
         existing_facts = set()
@@ -427,12 +427,12 @@ class OasisProfileGenerator:
                     existing_facts.add(fact)
                 elif edge_name:
                     if direction == "outgoing":
-                        relationships.append(f"- {entity.name} --[{edge_name}]--> (相关实体)")
+                        relationships.append(f"- {entity.name} --[{edge_name}]--> (related entity)")
                     else:
-                        relationships.append(f"- (相关实体) --[{edge_name}]--> {entity.name}")
-            
+                        relationships.append(f"- (related entity) --[{edge_name}]--> {entity.name}")
+
             if relationships:
-                context_parts.append("### 相关事实和关系\n" + "\n".join(relationships))
+                context_parts.append("### Related facts and relationships\n" + "\n".join(relationships))
         
         # 3. Detailed information for related nodes.
         if entity.related_nodes:
@@ -452,7 +452,7 @@ class OasisProfileGenerator:
                     related_info.append(f"- **{node_name}**{label_str}")
             
             if related_info:
-                context_parts.append("### 关联实体信息\n" + "\n".join(related_info))
+                context_parts.append("### Related entity information\n" + "\n".join(related_info))
         
         # 4. Augment with Zep hybrid retrieval.
         zep_results = self._search_zep_for_entity(entity)
@@ -461,10 +461,10 @@ class OasisProfileGenerator:
             # Deduplicate against already-known facts.
             new_facts = [f for f in zep_results["facts"] if f not in existing_facts]
             if new_facts:
-                context_parts.append("### Zep检索到的事实信息\n" + "\n".join(f"- {f}" for f in new_facts[:15]))
-        
+                context_parts.append("### Facts retrieved from the graph\n" + "\n".join(f"- {f}" for f in new_facts[:15]))
+
         if zep_results.get("node_summaries"):
-            context_parts.append("### Zep检索到的相关节点\n" + "\n".join(f"- {s}" for s in zep_results["node_summaries"][:10]))
+            context_parts.append("### Related nodes retrieved from the graph\n" + "\n".join(f"- {s}" for s in zep_results["node_summaries"][:10]))
         
         return "\n\n".join(context_parts)
     
@@ -535,7 +535,7 @@ class OasisProfileGenerator:
                     if "bio" not in result or not result["bio"]:
                         result["bio"] = entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}"
                     if "persona" not in result or not result["persona"]:
-                        result["persona"] = entity_summary or f"{entity_name}是一个{entity_type}。"
+                        result["persona"] = entity_summary or f"{entity_name} is a {entity_type}."
                     
                     return result
                     
@@ -631,7 +631,7 @@ class OasisProfileGenerator:
         persona_match = re.search(r'"persona"\s*:\s*"([^"]*)', content)  # May be truncated.
         
         bio = bio_match.group(1) if bio_match else (entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}")
-        persona = persona_match.group(1) if persona_match else (entity_summary or f"{entity_name}是一个{entity_type}。")
+        persona = persona_match.group(1) if persona_match else (entity_summary or f"{entity_name} is a {entity_type}.")
         
         # If we recovered something meaningful, mark the result as fixed.
         if bio_match or persona_match:
@@ -646,12 +646,12 @@ class OasisProfileGenerator:
         logger.warning(t("log.profile_generator.m014"))
         return {
             "bio": entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}",
-            "persona": entity_summary or f"{entity_name}是一个{entity_type}。"
+            "persona": entity_summary or f"{entity_name} is a {entity_type}."
         }
     
     def _get_system_prompt(self, is_individual: bool) -> str:
         """Return the system prompt for persona generation."""
-        base_prompt = "You are an expert in social-media user-persona generation. Produce detailed, realistic personas for opinion simulation that faithfully reflect existing real-world conditions. You MUST return valid JSON; no string value may contain unescaped newlines."
+        base_prompt = "You are an expert at generating social-media user personas. Produce detailed, realistic personas for opinion-simulation, faithfully grounded in the supplied real-world context. You MUST return valid JSON; no string value may contain unescaped newline characters."
         return f"{base_prompt}\n\n{get_language_instruction()}"
 
     def _build_individual_persona_prompt(
@@ -667,40 +667,41 @@ class OasisProfileGenerator:
         attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else "None"
         context_str = context[:3000] if context else "No additional context"
 
-        return f"""Generate a detailed social-media user persona for the entity, faithfully reflecting existing real-world conditions.
+        return f"""Generate a detailed social-media user persona for an entity, faithfully grounded in the supplied real-world context.
+
 
 Entity name: {entity_name}
 Entity type: {entity_type}
 Entity summary: {entity_summary}
 Entity attributes: {attrs_str}
 
-Context information:
+Context:
 {context_str}
 
-Generate JSON with the following fields:
+Produce a JSON object with the following fields:
 
-1. bio: social-media biography, ~200 characters
-2. persona: detailed persona description (~2000 characters of plain text), covering:
-   - Basic information (age, profession, education, location)
-   - Background (notable experience, association with the event, social ties)
-   - Personality (MBTI type, core traits, emotional expression)
-   - Social-media behavior (posting frequency, content preferences, interaction style, language traits)
-   - Stance (attitudes toward the topic, content likely to anger or move them)
-   - Unique features (catchphrases, special experiences, hobbies)
-   - Personal memory (a key part of the persona: this individual's relation to the event and prior actions/reactions in it)
-3. age: age number (MUST be an integer)
-4. gender: gender, MUST be one of the English literals: "male" or "female"
-5. mbti: MBTI type (e.g. INTJ, ENFP)
-6. country: country name
-7. profession: profession
-8. interested_topics: array of interest topics
+1. bio: ~200-character social-media bio.
+2. persona: detailed persona description as a single coherent ~2000-character plain-text passage covering:
+   - basic info (age, profession, educational background, location)
+   - background (notable experiences, link to the focal event, social relationships)
+   - personality (MBTI type, core traits, emotional expression style)
+   - social-media behaviour (posting frequency, content preferences, interaction style, voice)
+   - stance and opinions (attitude toward the topic, content likely to provoke or move them)
+   - distinctive traits (catchphrases, unusual experiences, hobbies)
+   - personal memories (a key part of the persona; describe this individual's link to the focal event and any actions / reactions they have already taken in connection with it)
+3. age: an integer.
+4. gender: must be the literal English token "male" or "female".
+5. mbti: MBTI type (e.g. INTJ, ENFP).
+6. country: free-form country name.
+7. profession: free-form occupation.
+8. interested_topics: array of topic strings.
 
 Important:
-- All field values MUST be strings or numbers; do not use unescaped newlines.
-- persona MUST be a single coherent block of text.
-- {get_language_instruction()} (gender field MUST use the English values "male" or "female")
-- Content must remain consistent with the entity information.
-- age MUST be a valid integer; gender MUST be "male" or "female".
+- All field values must be strings or numbers; do not include newline characters in any string value.
+- persona must be a single coherent prose passage.
+- {get_language_instruction()} (the gender field must remain English: male/female.)
+- The content must remain consistent with the supplied entity information.
+- age must be a valid integer; gender must be exactly "male" or "female".
 """
 
     def _build_group_persona_prompt(
@@ -716,40 +717,41 @@ Important:
         attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else "None"
         context_str = context[:3000] if context else "No additional context"
 
-        return f"""Generate a detailed social-media account profile for the institution/group entity, faithfully reflecting existing real-world conditions.
+        return f"""Generate a detailed social-media account profile for an institutional or group entity, faithfully grounded in the supplied real-world context.
+
 
 Entity name: {entity_name}
 Entity type: {entity_type}
 Entity summary: {entity_summary}
 Entity attributes: {attrs_str}
 
-Context information:
+Context:
 {context_str}
 
-Generate JSON with the following fields:
+Produce a JSON object with the following fields:
 
-1. bio: official-account biography, ~200 characters, professional and appropriate
-2. persona: detailed account-profile description (~2000 characters of plain text), covering:
-   - Institutional basics (formal name, institution type, founding background, primary functions)
-   - Account positioning (account type, target audience, core function)
-   - Voice (language traits, common phrasing, taboo topics)
-   - Publishing pattern (content types, publishing frequency, active hours)
-   - Stance (official position on the core topic, controversy-handling style)
-   - Special notes (the group portrait represented, operational habits)
-   - Institutional memory (a key part of the account profile: this institution's relation to the event and prior actions/reactions in it)
-3. age: fixed integer 30 (the institutional virtual age)
-4. gender: fixed literal "other" (institutional accounts use "other" to indicate non-individual)
-5. mbti: MBTI type used to characterize account voice (e.g. ISTJ for strict/conservative)
-6. country: country name
-7. profession: institutional function description
-8. interested_topics: array of focus areas
+1. bio: ~200-character official-account bio, polished and professional.
+2. persona: detailed account profile as a single coherent ~2000-character plain-text passage covering:
+   - institution basics (formal name, type of institution, founding background, primary functions)
+   - account positioning (account type, target audience, core purpose)
+   - voice (linguistic style, common expressions, taboo topics)
+   - content patterns (content types, posting frequency, active hours)
+   - stance (official position on the focal topic, how disputes are handled)
+   - special notes (the group profile it represents, operational habits)
+   - institutional memory (a key part of the persona; describe this institution's link to the focal event and any actions / reactions it has already taken in connection with it)
+3. age: must be the integer 30 (a virtual age used for institutional accounts).
+4. gender: must be the literal English token "other" (institutional accounts use "other" to indicate non-individual).
+5. mbti: MBTI type used to describe the account's voice (e.g. ISTJ for a rigorous, conservative tone).
+6. country: free-form country name.
+7. profession: free-form description of the institution's role.
+8. interested_topics: array of focus areas.
 
 Important:
-- All field values MUST be strings or numbers; null values are not allowed.
-- persona MUST be a single coherent block of text without unescaped newlines.
-- {get_language_instruction()} (gender field MUST use the English value "other")
-- age MUST be the integer 30; gender MUST be the string "other".
-- Account voice MUST match the institution's identity positioning."""
+- All field values must be strings or numbers; null values are not allowed.
+- persona must be a single coherent prose passage; do not include newline characters in any string value.
+- {get_language_instruction()} (the gender field must remain English: "other".)
+- age must be the integer 30; gender must be exactly the string "other".
+- The institutional account's voice must match its identity."""
     
     def _generate_profile_rule_based(
         self,
@@ -959,7 +961,7 @@ Important:
                         progress_callback(
                             current, 
                             total, 
-                            f"已完成 {current}/{total}: {entity.name}（{entity_type}）"
+                            f"Completed {current}/{total}: {entity.name} ({entity_type})"
                         )
                     
                     if error:
@@ -994,24 +996,25 @@ Important:
         separator = "-" * 70
 
         # Assemble the full output (no truncation).
-        topics_str = ', '.join(profile.interested_topics) if profile.interested_topics else '无'
-        
+        topics_str = ', '.join(profile.interested_topics) if profile.interested_topics else 'None'
+
+
         output_lines = [
             f"\n{separator}",
             t('progress.profileGenerated', name=entity_name, type=entity_type),
             f"{separator}",
-            f"用户名: {profile.user_name}",
+            f"Username: {profile.user_name}",
             f"",
-            f"【简介】",
+            f"[Bio]",
             f"{profile.bio}",
             f"",
-            f"【详细人设】",
+            f"[Persona]",
             f"{profile.persona}",
             f"",
-            f"【基本属性】",
-            f"年龄: {profile.age} | 性别: {profile.gender} | MBTI: {profile.mbti}",
-            f"职业: {profile.profession} | 国家: {profile.country}",
-            f"兴趣话题: {topics_str}",
+            f"[Basic attributes]",
+            f"Age: {profile.age} | Gender: {profile.gender} | MBTI: {profile.mbti}",
+            f"Profession: {profile.profession} | Country: {profile.country}",
+            f"Interested topics: {topics_str}",
             separator
         ]
         

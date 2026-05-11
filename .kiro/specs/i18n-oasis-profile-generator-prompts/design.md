@@ -2,616 +2,316 @@
 
 ## Overview
 
-**Purpose**: Translate the Chinese prompt strings in
-`backend/app/services/oasis_profile_generator.py` (the system prompt
-inside `_get_system_prompt`, the individual-persona f-string template
-inside `_build_individual_persona_prompt`, the group-persona f-string
-template inside `_build_group_persona_prompt`, and the four
-`attrs_str`/`context_str` fallback literals) to English while
-preserving every functional contract — JSON output keys, the `gender`
-English enum, the `age` integer rule, the `persona` no-newline rule,
-all `{variable}` interpolations, and every `get_language_instruction()`
-call site. The goal is to remove the Chinese-language base-prompt bias
-that currently leaks Chinese structure and word choice into persona
-output even when `Accept-Language: en`.
+**Purpose**: Translate the Chinese prompt strings, context-builder section labels, fallback persona templates, and console-output formatting in `backend/app/services/oasis_profile_generator.py` to English while preserving every functional contract — LLM JSON output schema, the `_normalize_gender` mapping that must continue to accept Chinese gender values, the `_generate_profile_rule_based` default `country: "中国"` data value, all f-string interpolations, and the `get_language_instruction()` locale-postfix mechanism. The goal is to remove the Chinese-language base-prompt and context-label bias that currently leaks Chinese structure and word choice into OASIS profile output even when `Accept-Language: en`.
 
-**Users**: MiroFish operators running the Step 2 environment-setup
-pipeline under any locale; downstream Step 3 (CAMEL-OASIS subprocess)
-which consumes the produced persona dictionaries.
+**Users**: MiroFish operators running the Step 2 OASIS profile generation under any locale; downstream OASIS / CAMEL-OASIS consumers of the agent JSON / CSV produced by `OasisProfileGenerator`.
 
-**Impact**: Replaces approximately one one-line system prompt and two
-large f-string templates with English equivalents inside one file. No
-API change, no new dependencies, no new files. The two production
-callers (`backend/app/services/simulation_manager.py:316` and
-`backend/app/api/simulation.py:1413`) and the OASIS subprocess are
-unaffected.
+**Impact**: Replaces approximately one base-prompt string, two large user-message templates, four context-builder section labels, three fallback persona templates, and ten console-output strings with English equivalents inside one file. No API surface change. No new dependencies. No new files. Callers (`backend/app/api/simulation.py`, etc.) and OASIS consumers are unaffected.
 
 ### Goals
 
-- Zero CJK characters in any prompt string literal contributed by
-  `oasis_profile_generator.py` to the system prompt or the two
-  user-message bodies (including the `attrs_str`/`context_str`
-  fallback literals).
-- English persona prose (`bio`, `persona`, `profession`,
-  `interested_topics`) under `Accept-Language: en`.
-- Continued Chinese persona prose under `Accept-Language: zh`, of
-  equivalent quality to the pre-change behaviour.
-- `gender` field stays exactly one of `"male"`/`"female"`/`"other"`
-  regardless of locale.
-- No diff to public signatures, taxonomy lists, LLM-call parameters,
-  or call sites.
+- Zero CJK characters in any prompt string literal contributed by `oasis_profile_generator.py` to the system prompt, the user message, or the context block.
+- Zero CJK characters in any console-output literal in `_print_generated_profile` and the surrounding banners.
+- English `bio` / `persona` output under `Accept-Language: en`.
+- Continued Chinese `bio` / `persona` output under `Accept-Language: zh`, of equivalent quality to the pre-change behaviour.
+- No diff to public signatures, dataclass schema, LLM-call parameters, or call sites.
 
 ### Non-Goals
 
-- Externalizing prompts to `/locales/*.json` (out of scope per ticket).
+- Externalizing prompts to `/locales/*.json` (out of scope per ticket and consistent with `i18n-ontology-generator-prompts`).
 - Translating logger calls in this file (covered by issue #6).
-- Translating module/class/method docstrings or inline comments
-  (covered by issue #7).
-- Refactoring the `OasisAgentProfile` schema, `MBTI_TYPES` /
-  `COUNTRIES` lists, or the `INDIVIDUAL_ENTITY_TYPES` /
-  `GROUP_ENTITY_TYPES` taxonomies.
-- Modifying the rule-based fallback (`_generate_profile_rule_based`)
-  including its Chinese country defaults.
-- Modifying the resilience helpers `_fix_truncated_json` /
-  `_try_fix_json` and the Chinese persona fallback fragments inside
-  them (e.g. `f"{entity_name}是一个{entity_type}。"`).
-- Modifying `backend/app/utils/locale.py`, the locale registries, or
-  any non-target file.
-- Modifying `backend/scripts/test_profile_format.py`.
+- Translating module/class/method docstrings or inline comments in this file (covered by issue #7).
+- Refactoring the OASIS profile JSON schema, the OASIS adapter, or the simulation flow.
+- Modifying the `_normalize_gender` mapping table (it must keep accepting Chinese gender keys).
+- Modifying the `_generate_profile_rule_based` default `"中国"` country value (data, not prompt).
+- Modifying the `ValueError("LLM_API_KEY 未配置")` raise (covered by issue #6).
+- Modifying `backend/app/utils/locale.py`, the locale registries, or any non-target file.
 
 ## Boundary Commitments
 
 ### This Spec Owns
 
-- The English content of `_get_system_prompt`'s `base_prompt` literal.
-- The English content of the f-string template body in
-  `_build_individual_persona_prompt`.
-- The English content of the f-string template body in
-  `_build_group_persona_prompt`.
-- The English replacements for the four `"无"` / `"无额外上下文"`
-  fallback literals (in both individual and group builders).
+- The English content of the `base_prompt` string in `OasisProfileGenerator._get_system_prompt` (line 664).
+- The English content of every string literal in `OasisProfileGenerator._build_individual_persona_prompt` (lines 677–714).
+- The English content of every string literal in `OasisProfileGenerator._build_group_persona_prompt` (lines 726–762).
+- The English content of the section-label literals embedded in `OasisProfileGenerator._search_zep_for_entity` (lines 384, 390, 392) and `OasisProfileGenerator._build_entity_context` (lines 422, 438, 440, 443, 463, 472, 475).
+- The English content of the fallback persona templates in `OasisProfileGenerator._generate_profile_with_llm` (line 547) and `OasisProfileGenerator._try_fix_json` (lines 644, 659).
+- The English content of the no-attributes / no-context placeholder literals (`"无"`, `"无额外上下文"`) at lines 677, 678, 726, 727.
+- The English content of every string literal in `OasisProfileGenerator._print_generated_profile` (lines 1011, 1017, 1019, 1022, 1025, 1026, 1027, 1028) and the surrounding banners in `OasisProfileGenerator.generate_profiles_from_entities` (lines 945, 1001).
 
 ### Out of Boundary
 
 - Locale resolution machinery (`backend/app/utils/locale.py`).
-- Per-locale `llmInstruction` definitions
-  (`/locales/languages.json`).
-- Reasoning-model output stripping inside `_fix_truncated_json` /
-  `_try_fix_json`.
-- Logger calls and translation keys (`t("log.profile_generator.*")`)
-  inside `oasis_profile_generator.py` (issue #6, already merged).
-- Module / class / method docstrings and inline comments inside
-  `oasis_profile_generator.py` (issue #7).
-- Rule-based fallback (`_generate_profile_rule_based`) including its
-  Chinese country defaults `"中国"`.
-- Chinese persona fragments inside the resilience helpers (e.g.
-  `f"{entity_name}是一个{entity_type}。"`) — those are runtime data
-  fallbacks, not LLM prompts.
-- All callers of `OasisProfileGenerator`
-  (`simulation_manager.py`, `api/simulation.py`).
+- Per-locale `llmInstruction` definitions (`/locales/languages.json`).
+- Reasoning-model output stripping (`backend/app/utils/llm_client.py`).
+- All `logger.*` calls (already keyed via `t("log.profile_generator.*")`; covered by issue #6).
+- Module / class / method docstrings and inline comments (covered by issue #7), including the inline comments at lines 65, 93, 641, 804–807, 816–819.
+- The `_normalize_gender` mapping table (lines 1123–1132) — must continue to accept Chinese gender keys from upstream.
+- The hard-coded `country: "中国"` default in `_generate_profile_rule_based` (lines 807, 819) — this is a data value, not a prompt.
+- The `ValueError("LLM_API_KEY 未配置")` raise (line 194) — covered by issue #6.
+- All callers of `OasisProfileGenerator`, including `backend/app/api/simulation.py`.
 - Tests, scripts, and frontend code.
-- The `print(...)` banner at line 945 (closely associated with logger
-  externalization #6).
 
 ### Allowed Dependencies
 
-- Existing imports in the target file (no additions). Specifically:
-  `get_language_instruction`, `get_locale`, `set_locale`, `t` from
-  `..utils.locale` are already imported and remain unchanged.
-- Existing LLM transport via `self.client.chat.completions.create`
-  (unchanged).
+- Existing `get_language_instruction`, `get_locale`, `set_locale`, `t` imports from `..utils.locale` (already imported; unchanged).
+- Existing `OpenAI` SDK invocation (unchanged).
+- No new imports.
 
 ### Revalidation Triggers
 
-The following changes elsewhere would invalidate this design:
+The following changes elsewhere would invalidate this design and require revisiting the prompt:
 
-- A change to the JSON contract emitted by the LLM (`bio`, `persona`,
-  `age`, `gender`, `mbti`, `country`, `profession`,
-  `interested_topics` keys).
-- A change to the `OasisAgentProfile` dataclass field set or the
-  Reddit/Twitter serializers.
-- A change to `get_language_instruction()` semantics or the per-locale
-  `llmInstruction` strings.
-- A change to OASIS subprocess profile-format expectations (verified
-  via `backend/scripts/test_profile_format.py`).
+- A change to the JSON contract emitted by the LLM (`bio`, `persona`, `age`, `gender`, `mbti`, `country`, `profession`, `interested_topics`).
+- A change to `OasisAgentProfile` field semantics.
+- A change to `get_language_instruction()` semantics or the per-locale `llmInstruction` strings.
+- A change to OASIS / CAMEL-OASIS profile field expectations (e.g. if `gender` accepts more than `male` / `female` / `other`).
 
 ## Architecture
 
 ### Existing Architecture Analysis
 
-`OasisProfileGenerator` lives in `backend/app/services/`, follows the
-in-process service pattern, and is invoked from a Flask handler inside
-a background task. The relevant flow:
+`OasisProfileGenerator` lives in `backend/app/services/`, follows the in-process service pattern with bounded thread-pool fan-out for batched profile generation, and is invoked from `backend/app/api/simulation.py` inside a background `Task`. It depends on:
 
-1. The Flask handler resolves the request locale via `Accept-Language`;
-   `set_locale()` is propagated into worker threads in
-   `generate_profiles_for_entities` (locale captured at line ~910 and
-   restored inside `generate_single_profile` at line ~914).
-2. For each entity, `generate_profile_from_entity` decides between the
-   individual or group prompt builder via
-   `self._is_individual_entity(entity_type)`.
-3. The chosen builder produces a user-message string; `_get_system_prompt`
-   produces a system-message string. Both are sent to the LLM via
-   `self.client.chat.completions.create(..., response_format={"type": "json_object"})`.
-4. The LLM response is JSON-decoded; on failure, `_try_fix_json` and
-   `_fix_truncated_json` attempt recovery; on terminal failure,
-   `_generate_profile_rule_based` produces a rule-based persona.
-5. The result is wrapped in an `OasisAgentProfile` dataclass and
-   serialized to Reddit JSON or Twitter CSV via `_save_reddit_json` /
-   `_save_twitter_csv`.
+- `OpenAI` SDK for the LLM call.
+- `GraphitiAdapter` (legacy `zep_client` field name) for the Zep / Graphiti graph search.
+- `get_language_instruction()` for locale steering.
+- `t()` for already-keyed log strings.
 
-This design preserves all of the above. The change is purely lexical
-inside three method bodies and four literal defaults.
+The relevant flow is:
+
+1. The Flask handler resolves the request locale via `Accept-Language`; the locale is propagated to thread-pool workers via the `set_locale(current_locale)` capture in `generate_profiles_from_entities` (line 914).
+2. For each entity, `_build_entity_context()` is called: it composes a context block by concatenating headed sub-sections (entity attributes, related facts/edges, related node summaries, Graphiti-search facts, Graphiti-search nodes). Some of these labels are currently in Chinese.
+3. The context string is interpolated into the user-message template by either `_build_individual_persona_prompt` or `_build_group_persona_prompt`. Both templates are currently in Chinese, with English `gender` token directives interleaved.
+4. The system prompt is built by `_get_system_prompt`: a Chinese base prompt followed by the locale-appropriate `get_language_instruction()`.
+5. The two messages are sent to `chat.completions.create` with `response_format={"type": "json_object"}`. The result flows through `json.loads` → `_try_fix_json` → `_fix_truncated_json` fallback chain. Synthesized fallback personas use the Chinese template `f"{entity_name}是一个{entity_type}。"` if the LLM result is unusable.
+6. After per-profile completion, `_print_generated_profile` writes a Chinese-headed banner to stdout, and `generate_profiles_from_entities` writes Chinese batch banners.
+
+This design preserves all of the above structurally. The change is purely lexical inside the seven regions of one file.
 
 ### Architecture Pattern & Boundary Map
 
 ```mermaid
 graph TB
-    Caller["simulation_manager.py / api/simulation.py"]
-    Generator["OasisProfileGenerator"]
-    Sys["_get_system_prompt"]
-    Ind["_build_individual_persona_prompt"]
-    Grp["_build_group_persona_prompt"]
-    Locale["locale.get_language_instruction"]
-    Client["openai.chat.completions.create"]
-    Parser["_try_fix_json / _fix_truncated_json"]
-    Fallback["_generate_profile_rule_based"]
-    Serializer["_save_reddit_json / _save_twitter_csv"]
+    Caller[simulation.py handler]
+    Generator[OasisProfileGenerator]
+    Locale[locale.get_language_instruction]
+    Graph[GraphitiAdapter graph.search]
+    LLM[OpenAI chat.completions]
 
-    Caller --> Generator
-    Generator --> Sys
-    Generator --> Ind
-    Generator --> Grp
-    Sys -. inline call .-> Locale
-    Ind -. inline call .-> Locale
-    Grp -. inline call .-> Locale
-    Sys --> Client
-    Ind --> Client
-    Grp --> Client
-    Client --> Parser
-    Parser --> Fallback
-    Generator --> Serializer
-
-    classDef change fill:#fff4ce,stroke:#a16207,color:#000
-    class Sys,Ind,Grp change
+    Caller -->|generate_profiles_from_entities| Generator
+    Generator -->|build context block| Generator
+    Generator -->|read locale postfix| Locale
+    Generator -->|search facts/nodes| Graph
+    Generator -->|JSON request| LLM
+    LLM -->|raw JSON| Generator
+    Generator -->|OasisAgentProfile| Caller
 ```
-
-The three highlighted nodes (`_get_system_prompt`,
-`_build_individual_persona_prompt`,
-`_build_group_persona_prompt`) are the only nodes whose **string
-contents** change. Every edge — including each call to
-`get_language_instruction()` — remains intact.
 
 **Architecture Integration**:
 
-- **Selected pattern**: In-place lexical translation of the three
-  prompt builders (Option A from `gap-analysis.md` / `research.md`).
-- **Domain/feature boundaries**: Same as today; `OasisProfileGenerator`
-  remains the sole owner of persona prompt content. `LocaleService`
-  remains the sole owner of locale-postfix steering.
-- **Existing patterns preserved**: locale-thread propagation, retry
-  logic with temperature decay, JSON resilience helpers, rule-based
-  fallback, two-platform serialization.
-- **New components rationale**: none — no new components.
-- **Steering compliance**: aligns with `tech.md` ("LLM prompts use the
-  `get_language_instruction()` postfix mechanism, not key files") and
-  `structure.md` ("services own their own prompt strings").
+- Selected pattern: **In-place lexical translation** of seven regions of an existing service. No structural change.
+- Domain/feature boundaries: locale machinery vs. prompt assembly vs. LLM transport remain cleanly separated.
+- Existing patterns preserved: prompt-as-f-string user-message construction; Chinese-keyed `_normalize_gender` mapping; `t(...)` for log strings; `get_language_instruction()` postfix concatenation.
+- New components rationale: none — no new components.
+- Steering compliance: matches the established `i18n-*-prompts` family pattern (issues #2, #3, #4, #5) of in-place translation rather than `t()` keying for prompt bodies. Respects the steering note that "existing files mix English and Chinese in comments/docstrings — preserve both; do not translate one into the other unless asked." This ticket is the explicit ask for prompt strings, scoped to exclude comments/docstrings.
 
-### Technology Stack & Alignment
+### Technology Stack
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Backend / Services | Python ≥3.11 | Hosts the prompt builders | No version change |
-| LLM transport | `openai` SDK against any OpenAI-compatible endpoint | Sends translated prompts | Unchanged |
-| i18n | `backend/app/utils/locale.py` | Resolves locale and provides `get_language_instruction()` postfix | Unchanged |
-| Storage | None | — | No persistence change |
+| Backend / Services | Python 3.11+ | Hosts `OasisProfileGenerator` | Existing — unchanged. |
+| Backend / Services | `openai` SDK | Issues the prompt; returns JSON | Existing — unchanged. |
+| Backend / Services | `backend/app/utils/locale.py` | Resolves `Accept-Language` → `llmInstruction` postfix | Existing — unchanged. |
+| Backend / Services | `GraphitiAdapter` | Provides Graphiti graph search facts/nodes | Existing — unchanged. |
 
-No new dependencies. No version bumps. The locale infrastructure used
-by the change is the same one used by every sibling i18n spec already
-merged.
+No new dependencies. No version changes.
 
 ## File Structure Plan
 
 ### Modified Files
 
-- `backend/app/services/oasis_profile_generator.py` — only file that
-  changes.
-  - `_get_system_prompt(self, is_individual: bool) -> str` — translate
-    `base_prompt` literal to English. Keep
-    `f"{base_prompt}\n\n{get_language_instruction()}"` shape.
-  - `_build_individual_persona_prompt(self, entity_name, entity_type,
-    entity_summary, entity_attributes, context) -> str` — translate
-    the f-string body to English; replace `"无"` and `"无额外上下文"`
-    defaults; keep every `{variable}` interpolation and the inline
-    `{get_language_instruction()}` call.
-  - `_build_group_persona_prompt(self, entity_name, entity_type,
-    entity_summary, entity_attributes, context) -> str` — same
-    treatment as the individual builder.
+- `backend/app/services/oasis_profile_generator.py` — Replace the body of `_get_system_prompt` `base_prompt`; replace every Chinese string literal in `_build_individual_persona_prompt` and `_build_group_persona_prompt` with English equivalents; replace the four section labels in `_search_zep_for_entity` and the six section labels in `_build_entity_context`; replace the three fallback persona templates; replace the two `"无"` / `"无额外上下文"` placeholders; replace the console-output literals in `_print_generated_profile` and the two `print(...)` banners in `generate_profiles_from_entities`. Preserve every other character of the file.
 
-No other files in the repository are touched by this change.
+No new files. No deletions. No moves.
 
 ## System Flows
 
-The runtime flow does not change. The only way to demonstrate this is
-to compare the call graph before and after — and the call graph is
-already shown in the Architecture diagram above. Skipping a separate
-sequence diagram.
+The control-flow diagram in *Architecture Pattern & Boundary Map* covers the relevant flow; no additional diagrams are needed for this string-literal change.
 
 ## Requirements Traceability
 
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
-| 1.1 | `base_prompt` contains zero Chinese characters | `_get_system_prompt` | `(self, is_individual: bool) -> str` | system-message construction |
-| 1.2 | Preserve `f"{base_prompt}\n\n{get_language_instruction()}"` | `_get_system_prompt` | inline `get_language_instruction()` | system-message construction |
-| 1.3 | Preserve role/intent semantics | `_get_system_prompt` | — | — |
-| 1.4 | Preserve signature `_get_system_prompt(self, is_individual: bool) -> str` | `_get_system_prompt` | (signature) | — |
-| 2.1 | Individual prompt body in English | `_build_individual_persona_prompt` | f-string body | user-message construction |
-| 2.2 | Preserve `{entity_name}`, `{entity_type}`, `{entity_summary}`, `{attrs_str}`, `{context_str}`, `{get_language_instruction()}` | `_build_individual_persona_prompt` | f-string interpolations | — |
-| 2.3 | Preserve JSON keys `bio, persona, age, gender, mbti, country, profession, interested_topics` | `_build_individual_persona_prompt` | prompt content | — |
-| 2.4 | Preserve field-level constraints (lengths, MBTI, gender enum, age int) | `_build_individual_persona_prompt` | prompt content | — |
-| 2.5 | Preserve trailing-rules block semantics | `_build_individual_persona_prompt` | prompt content | — |
-| 2.6 | Preserve method signature | `_build_individual_persona_prompt` | (signature) | — |
-| 2.7 | Translate `"无"` and `"无额外上下文"` defaults | `_build_individual_persona_prompt` | literal defaults | — |
-| 2.8 | Zero Chinese in assembled body | `_build_individual_persona_prompt` | — | — |
-| 3.1 | Group prompt body in English | `_build_group_persona_prompt` | f-string body | user-message construction |
-| 3.2 | Preserve interpolations | `_build_group_persona_prompt` | f-string interpolations | — |
-| 3.3 | Preserve JSON keys | `_build_group_persona_prompt` | prompt content | — |
-| 3.4 | Preserve field-level constraints (age=30, gender="other", etc.) | `_build_group_persona_prompt` | prompt content | — |
-| 3.5 | Preserve trailing-rules semantics | `_build_group_persona_prompt` | prompt content | — |
-| 3.6 | Preserve method signature | `_build_group_persona_prompt` | (signature) | — |
-| 3.7 | Translate `"无"` / `"无额外上下文"` defaults | `_build_group_persona_prompt` | literal defaults | — |
-| 3.8 | Zero Chinese in assembled body | `_build_group_persona_prompt` | — | — |
-| 4.1 | Preserve every `get_language_instruction()` call site | all three builders | inline call | system + user message construction |
-| 4.2 | Preserve locale-thread plumbing | `generate_profiles_for_entities` (untouched) | `set_locale(current_locale)` | worker thread spawn |
-| 4.3 | Locale=zh produces Chinese personas | runtime behaviour | locale postfix | LLM call |
-| 4.4 | Locale=en produces English personas | runtime behaviour | locale postfix | LLM call |
-| 4.5 | `gender` ∈ {male, female, other} regardless of locale | prompt content | — | — |
-| 4.6 | Don't alter locale.py / locales/ | (none) | — | — |
-| 5.1 | Preserve `OasisAgentProfile` dataclass | (untouched) | dataclass | — |
-| 5.2 | Preserve method signatures | (untouched) | signatures | — |
-| 5.3 | Preserve LLM invocation parameters | (untouched) | `chat.completions.create(...)` | — |
-| 5.4 | Preserve `MBTI_TYPES`, `COUNTRIES`, taxonomy lists | (untouched) | class constants | — |
-| 6.1 | Preserve `_fix_truncated_json` / `_try_fix_json` | (untouched) | helpers | — |
-| 6.2 | Reasoning-model recovery still works | (untouched) | resilience helpers | — |
-| 6.3 | No new prompt-language-dependent pre-processing | (none added) | — | — |
-| 6.4 | Round-trip yields non-empty `bio` and `persona` | runtime behaviour | LLM call | — |
-| 7.1 | `pytest test_profile_format.py` passes | runtime behaviour | serializers | — |
-| 7.2 | Reddit format schema preserved | (untouched) | `to_reddit_format` | — |
-| 7.3 | Twitter format schema preserved | (untouched) | `to_twitter_format` | — |
-| 7.4 | `gender` enum preserved | prompt content | — | — |
-| 8.1 | No logger edits | (untouched) | — | — |
-| 8.2 | No docstring/comment edits | (untouched) | — | — |
-| 8.3 | No rule-based fallback edits | (untouched) | — | — |
-| 8.4 | No edits outside the target file | (none) | — | — |
-| 8.5 | No new dependencies | (none) | `pyproject.toml` / `uv.lock` untouched | — |
-| 8.6 | No edits to `test_profile_format.py` | (untouched) | — | — |
+| 1.1–1.4 | English `_get_system_prompt` `base_prompt`; preserve `get_language_instruction()` site | OasisProfileGenerator → `_get_system_prompt` | None changed | Architecture diagram |
+| 2.1–2.9 | English `_build_individual_persona_prompt`; preserve interpolations and JSON keys | OasisProfileGenerator → `_build_individual_persona_prompt` | f-string interpolation | n/a |
+| 3.1–3.9 | English `_build_group_persona_prompt`; preserve fixed-value rules and interpolations | OasisProfileGenerator → `_build_group_persona_prompt` | f-string interpolation | n/a |
+| 4.1–4.10 | English context-builder section labels | OasisProfileGenerator → `_search_zep_for_entity`, `_build_entity_context` | Prompt-only | n/a |
+| 5.1–5.3 | English fallback persona templates | OasisProfileGenerator → `_generate_profile_with_llm`, `_try_fix_json` | None changed | n/a |
+| 6.1–6.7 | English console-output formatting | OasisProfileGenerator → `_print_generated_profile`, `generate_profiles_from_entities` | None changed | n/a |
+| 7.1–7.4 | Locale switching preserved via `get_language_instruction()` | OasisProfileGenerator + Locale | `get_language_instruction()` | Architecture diagram |
+| 8.1–8.6 | Public API and call-site stability; preserve `_normalize_gender` and `country: "中国"` data default | OasisProfileGenerator (signatures, dataclass) | Public surface | n/a |
+| 9.1–9.3 | Reasoning-model compatibility | OasisProfileGenerator → `chat.completions.create` + `_try_fix_json` | OpenAI SDK | Architecture diagram |
+| 10.1–10.7 | Out-of-scope surfaces untouched | OasisProfileGenerator (boundary commitment) | n/a | n/a |
 
 ## Components and Interfaces
 
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
-| `_get_system_prompt` | backend service / prompt builder | Produce the system message (English base + locale postfix) | 1.1, 1.2, 1.3, 1.4, 4.1, 4.5 | `get_language_instruction` (P0) | Service |
-| `_build_individual_persona_prompt` | backend service / prompt builder | Produce the individual-entity user message in English | 2.x, 4.1, 4.5 | `get_language_instruction` (P0); JSON encoder (P1) | Service |
-| `_build_group_persona_prompt` | backend service / prompt builder | Produce the group/institution user message in English | 3.x, 4.1, 4.5 | `get_language_instruction` (P0); JSON encoder (P1) | Service |
+| OasisProfileGenerator (modified) | Backend / Service | Render English profile-generation prompts and context labels; preserve all behaviour | 1.1–10.7 | `OpenAI.chat.completions.create` (P0), `get_language_instruction` (P0), `GraphitiAdapter.graph.search` (P1), `_normalize_gender` (P0) | Service |
 
-Only the three prompt-builder methods change. They all live inside the
-single class `OasisProfileGenerator` in
-`backend/app/services/oasis_profile_generator.py`. No new components.
+### Backend / Service
 
-### Backend / Services
-
-#### `_get_system_prompt`
+#### OasisProfileGenerator (modified)
 
 | Field | Detail |
 |-------|--------|
-| Intent | Build the `system` message: a one-line English directive that frames the model as a social-media persona expert + the per-locale postfix. |
-| Requirements | 1.1, 1.2, 1.3, 1.4, 4.1, 4.5 |
+| Intent | Translate prompt strings, context labels, fallback persona templates, and console output to English while preserving every functional contract. |
+| Requirements | 1.1, 1.2, 1.3, 1.4, 2.1–2.9, 3.1–3.9, 4.1–4.10, 5.1–5.3, 6.1–6.7, 7.1–7.4, 8.1–8.6, 9.1–9.3, 10.1–10.7 |
 
 **Responsibilities & Constraints**
 
-- Construct and return a single string of the form
-  `f"{base_prompt}\n\n{get_language_instruction()}"`.
-- Preserve the signature
-  `_get_system_prompt(self, is_individual: bool) -> str`.
-- The English `base_prompt` MUST convey: (a) expert role in
-  social-media persona generation; (b) intent to produce detailed,
-  realistic personas for opinion-simulation, faithful to existing
-  reality; (c) the JSON-output requirement and the no-unescaped-newline
-  rule.
-- The English `base_prompt` MUST NOT contain any CJK codepoint.
+- Owns: the English wording of the system prompt body, the two user-message templates, the context-builder section labels, the fallback persona templates, the no-attributes / no-context placeholders, and the console-output formatting.
+- Domain boundary: prompt content and proximate console output only. Does not own locale resolution, transport, validation, or data values like the OASIS `country` default.
+- Invariants:
+    - All seven owned regions after translation MUST contain zero CJK characters.
+    - The translated user-message templates MUST present the same eight required JSON keys: `bio`, `persona`, `age`, `gender`, `mbti`, `country`, `profession`, `interested_topics`.
+    - The translated individual-persona template MUST require `gender ∈ {"male", "female"}` and `age` to be a valid integer.
+    - The translated group-persona template MUST require `age == 30` and `gender == "other"`.
+    - The translated user-message templates MUST preserve the f-string interpolations: `{entity_name}`, `{entity_type}`, `{entity_summary}`, `{attrs_str}`, `{context_str}`, `{get_language_instruction()}`.
+    - The translated context-builder labels MUST preserve the section structure (heading + bulleted body).
+    - The translated fallback persona templates MUST preserve the `entity_summary or template` priority order.
+    - The call to `get_language_instruction()` MUST remain at its current locations.
+    - The call to `self.client.chat.completions.create(...)` MUST remain unchanged.
+    - All public signatures, dataclass schema, and the private helper signatures MUST remain unchanged.
+    - All `logger.*` calls (already keyed) and inline comments and docstrings in this file MUST remain unchanged (out of scope per #6 and #7).
+    - The `_normalize_gender` mapping table MUST remain unchanged.
+    - The rule-based `country: "中国"` default MUST remain unchanged.
 
 **Dependencies**
 
-- Outbound: `get_language_instruction()` from
-  `backend/app/utils/locale.py` (P0, criticality high — the entire
-  locale-steering chain depends on it).
+- Inbound: `backend/app/api/simulation.py` — production caller (P0).
+- Outbound: `backend/app/utils/locale.get_language_instruction` — locale postfix (P0); `backend/app/utils/locale.t` — already-keyed log strings (P0); `backend/app/services/graphiti_adapter.GraphitiAdapter.graph.search` — facts/nodes retrieval (P1); `OpenAI.chat.completions.create` — JSON LLM transport (P0).
+- External: none.
 
 **Contracts**: Service [x] / API [ ] / Event [ ] / Batch [ ] / State [ ]
 
 ##### Service Interface
 
+The public Python interface is unchanged. Representative signatures:
+
 ```python
-def _get_system_prompt(self, is_individual: bool) -> str:
-    """Return the LLM system message: English base + locale postfix."""
-    ...
+class OasisProfileGenerator:
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_name: Optional[str] = None,
+        zep_api_key: Optional[str] = None,
+        graph_id: Optional[str] = None,
+    ) -> None: ...
+
+    def generate_profile_from_entity(
+        self,
+        entity: EntityNode,
+        user_id: int,
+        use_llm: bool = True,
+    ) -> OasisAgentProfile: ...
+
+    def generate_profiles_from_entities(
+        self,
+        entities: List[EntityNode],
+        use_llm: bool = True,
+        progress_callback: Optional[callable] = None,
+        graph_id: Optional[str] = None,
+        parallel_count: int = 5,
+        realtime_output_path: Optional[str] = None,
+        output_platform: str = "reddit",
+    ) -> List[OasisAgentProfile]: ...
+
+    def save_profiles(
+        self,
+        profiles: List[OasisAgentProfile],
+        file_path: str,
+        platform: str = "reddit",
+    ) -> None: ...
 ```
 
-- Preconditions: none.
-- Postconditions: returns a non-empty string ending with the locale
-  postfix produced by `get_language_instruction()`.
-- Invariants: contains zero CJK codepoints.
+- Preconditions: a configured LLM provider; a configured Graphiti / Neo4j graph; a non-empty `entities` list when batching.
+- Postconditions: `OasisAgentProfile` instances with English `bio` and `persona` under locale `en`, Chinese under locale `zh`, and structurally equivalent across locales.
+- Invariants: see *Responsibilities & Constraints*.
 
 **Implementation Notes**
 
-- Integration: called only from `_call_llm_with_retry` (line ~523)
-  with `is_individual` decided upstream. The `is_individual` flag is
-  reserved for future divergence between system prompts; the current
-  implementation does not branch on it, and this design preserves
-  that.
-- Validation: a CJK regex audit on the method body after the edit must
-  match zero codepoints.
-- Risks: dropping one of the three role/intent pieces (expert framing,
-  JSON output requirement, no-newline rule). Implementation task lists
-  all three explicitly.
-
-#### `_build_individual_persona_prompt`
-
-| Field | Detail |
-|-------|--------|
-| Intent | Build the user-message string for an individual entity in English. Preserve every `{variable}` interpolation, the inline `{get_language_instruction()}` call, every JSON-output key, and every locale-independent constraint. |
-| Requirements | 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 4.1, 4.5 |
-
-**Responsibilities & Constraints**
-
-- Preserve signature
-  `_build_individual_persona_prompt(self, entity_name: str, entity_type: str, entity_summary: str, entity_attributes: Dict[str, Any], context: str) -> str`.
-- Preserve `attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else <fallback>` with `<fallback>` translated to English (`"None"`).
-- Preserve `context_str = context[:3000] if context else <fallback>` with `<fallback>` translated to English (`"No additional context"`).
-- Translate the f-string body to English with these structural sections (mirror the original Chinese intent):
-  1. **Lead sentence** — instruct the model to generate a detailed
-     social-media persona for the entity, faithful to existing reality.
-  2. **Entity context block** — labelled lines for `entity_name`,
-     `entity_type`, `entity_summary`, `entity_attributes` (English
-     labels; values via `{...}` interpolation).
-  3. **Context information block** — `Context information:` heading
-     followed by `{context_str}`.
-  4. **JSON-fields enumeration** — `Generate JSON with the following
-     fields:` followed by the eight numbered items (`bio`, `persona`,
-     `age`, `gender`, `mbti`, `country`, `profession`,
-     `interested_topics`) with English descriptions matching
-     Requirement 2.4.
-  5. **Trailing rules block** — `Important:` followed by:
-     - `All field values must be strings or numbers; do not use newlines.`
-     - `persona must be a single coherent block of text.`
-     - `{get_language_instruction()} (gender field MUST use English values: "male" or "female")`
-     - `Content must remain consistent with the entity information.`
-     - `age must be a valid integer; gender must be exactly "male" or "female".`
-- Preserve every `{variable}` interpolation present in the original by
-  name: `{entity_name}`, `{entity_type}`, `{entity_summary}`,
-  `{attrs_str}`, `{context_str}`, `{get_language_instruction()}`.
-- The translated body MUST NOT contain any CJK codepoint.
-
-**Dependencies**
-
-- Outbound: `json.dumps(..., ensure_ascii=False)` (P1, formatting the
-  attributes dict) — unchanged.
-- Outbound: `get_language_instruction()` (P0) — interpolated inline.
-
-**Contracts**: Service [x] / API [ ] / Event [ ] / Batch [ ] / State [ ]
-
-##### Service Interface
-
-```python
-def _build_individual_persona_prompt(
-    self,
-    entity_name: str,
-    entity_type: str,
-    entity_summary: str,
-    entity_attributes: Dict[str, Any],
-    context: str,
-) -> str:
-    """Return the LLM user message for an individual-entity persona."""
-    ...
-```
-
-- Preconditions: `entity_name`, `entity_type`, `entity_summary`
-  are strings (may be empty); `entity_attributes` is a dict (may be
-  empty); `context` is a string (may be empty).
-- Postconditions: returns a non-empty English string with all six
-  interpolations resolved.
-- Invariants: contains zero CJK codepoints; preserves every
-  `{variable}` interpolation by name.
-
-**Implementation Notes**
-
-- Integration: called from `_call_llm_with_retry` (line ~506) when
-  `is_individual` is true.
-- Validation: post-edit CJK regex audit; interpolation-set audit
-  (verify the multiset of `{...}` tokens equals the pre-change set);
-  smoke import + `pytest backend/scripts/test_profile_format.py`.
-- Risks: dropping the `gender` enum lock when translating; dropping
-  the inline `{get_language_instruction()}` call. The implementation
-  task list calls these out as discrete checks.
-
-#### `_build_group_persona_prompt`
-
-| Field | Detail |
-|-------|--------|
-| Intent | Build the user-message string for a group/institution entity in English. Preserve every `{variable}` interpolation, the inline `{get_language_instruction()}` call, every JSON-output key, and every locale-independent constraint (notably `age == 30` and `gender == "other"`). |
-| Requirements | 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 4.1, 4.5 |
-
-**Responsibilities & Constraints**
-
-- Preserve signature
-  `_build_group_persona_prompt(self, entity_name: str, entity_type: str, entity_summary: str, entity_attributes: Dict[str, Any], context: str) -> str`.
-- Preserve the `attrs_str` and `context_str` fallback handling with
-  English defaults (`"None"`, `"No additional context"`), identical to
-  the individual builder.
-- Translate the f-string body to English with these structural
-  sections (mirror the original Chinese intent for institutions):
-  1. **Lead sentence** — instruct the model to generate a detailed
-     social-media account profile for the institution/group, faithful
-     to existing reality.
-  2. **Entity context block** — labelled lines for `entity_name`,
-     `entity_type`, `entity_summary`, `entity_attributes`.
-  3. **Context information block** — `Context information:` heading
-     followed by `{context_str}`.
-  4. **JSON-fields enumeration** — `Generate JSON with the following
-     fields:` followed by the eight numbered items as defined in
-     Requirement 3.4: `bio` (~200 chars, official voice), `persona`
-     (~2000 chars, single coherent text covering institutional
-     basics, account positioning, voice, publishing pattern, stance,
-     special notes, institutional memory), `age` (= integer 30,
-     institutional virtual age), `gender` (= literal `"other"`),
-     `mbti` (e.g. ISTJ for strict/conservative), `country` (country
-     name string), `profession` (institutional function),
-     `interested_topics` (array).
-  5. **Trailing rules block** — `Important:` followed by:
-     - `All field values must be strings or numbers; null is not allowed.`
-     - `persona must be a single coherent block of text without newlines.`
-     - `{get_language_instruction()} (gender field MUST use English value "other")`
-     - `age must be the integer 30; gender must be the string "other".`
-     - `Account voice must match its identity positioning.`
-- Preserve every `{variable}` interpolation present in the original.
-- The translated body MUST NOT contain any CJK codepoint.
-
-**Dependencies**
-
-- Outbound: same as individual builder.
-
-**Contracts**: Service [x] / API [ ] / Event [ ] / Batch [ ] / State [ ]
-
-##### Service Interface
-
-```python
-def _build_group_persona_prompt(
-    self,
-    entity_name: str,
-    entity_type: str,
-    entity_summary: str,
-    entity_attributes: Dict[str, Any],
-    context: str,
-) -> str:
-    """Return the LLM user message for a group/institution persona."""
-    ...
-```
-
-- Preconditions / Postconditions / Invariants: same shape as the
-  individual builder.
-
-**Implementation Notes**
-
-- Integration: called from `_call_llm_with_retry` (line ~510) when
-  `is_individual` is false.
-- Validation: same checks as the individual builder, plus an explicit
-  audit that the institutional sentinels (`age == 30`,
-  `gender == "other"`) appear in English in the trailing-rules block.
-- Risks: same as the individual builder; additionally, the `country`
-  language hint (`"使用中文，如\"中国\""`) is intentionally dropped
-  during translation — the validation task verifies that under
-  `Accept-Language: en` a sample run produces an English country
-  name.
+- **Integration**: No new imports. No call-site changes. The diff is confined to seven regions of one file.
+- **Validation**: After implementation, run a targeted regex check (`[一-鿿]`) over the seven owned regions to confirm zero CJK; smoke-test `_build_individual_persona_prompt(...)` and `_build_group_persona_prompt(...)` with representative inputs to confirm interpolations still work; round-trip a single profile end-to-end under both `en` and `zh` locales.
+- **Risks**: English-base bias on Chinese-locale output (mitigated by the `llmInstruction` postfix already present in both system and user messages). Reduced LLM compliance with `gender ∈ {male, female}` for individual entities (mitigated by retaining the explicit English-token directive verbatim in the rules block).
 
 ## Data Models
 
-No data-model changes. The persona JSON schema, the
-`OasisAgentProfile` dataclass, the Reddit/Twitter serializers, and the
-OASIS subprocess profile-format expectations are all preserved
-verbatim.
+No data-model changes. The `OasisAgentProfile` dataclass is preserved verbatim.
 
 ## Error Handling
 
 ### Error Strategy
 
-No new error paths. The existing flow is preserved:
+Error handling is unchanged from the existing implementation:
 
-- `json.JSONDecodeError` → `_try_fix_json` → `_fix_truncated_json` →
-  partial-extract via regex → `_generate_profile_rule_based`.
-- LLM call failure → retry with temperature decay (`0.7 - attempt * 0.1`)
-  up to `max_attempts = 3`.
-- Terminal failure → rule-based fallback persona.
-- Per-entity worker exception → fallback `OasisAgentProfile` produced
-  inside `generate_single_profile` at line ~932.
-
-The translated prompts do not introduce new failure modes. Translating
-prompt language has no semantic effect on JSON parsing or on the
-`response_format={"type": "json_object"}` constraint.
+- LLM transport errors propagate from `chat.completions.create`.
+- Truncation (`finish_reason == "length"`) is repaired by `_fix_truncated_json`.
+- Invalid JSON falls through to `_try_fix_json`, then to a synthesized fallback profile (now with English persona text).
+- Per-entity exceptions are caught and a fallback `OasisAgentProfile` is constructed with English fallback strings.
 
 ### Error Categories and Responses
 
-- **User errors**: not applicable (this is an internal pipeline).
-- **System errors**: LLM transport errors are retried; logger emits
-  `t("log.profile_generator.m011")` etc. Logger keys already exist in
-  `locales/{en,zh}.json`.
-- **Business-logic errors**: `gender` not in the English enum, `age`
-  not an integer — the prompt explicitly mandates them; the validator
-  inside `_try_fix_json` does not enforce these but the OASIS
-  subprocess does. No change in either direction.
+- **User errors (4xx)**: not applicable at this layer; surfaced by the API handler.
+- **System errors (5xx)**: LLM/network failures propagate to the API handler, which converts them to JSON error responses.
+- **Business logic errors**: malformed JSON is auto-repaired or replaced with a fallback profile.
 
 ### Monitoring
 
-Existing logger calls are unchanged. Logger keys already i18n-keyed via
-`t("log.profile_generator.*")`.
+Existing `logger.*` calls (keyed via `t("log.profile_generator.*")`) cover progress and warnings; no new monitoring is added.
 
 ## Testing Strategy
 
 ### Unit Tests
 
-- **(Existing)**
-  `backend/scripts/test_profile_format.py::test_profile_formats` —
-  must continue to pass without modification.
-- **(Manual)** Smoke import:
-  `cd backend && uv run python -c "from app.services.oasis_profile_generator import OasisProfileGenerator"`
-  — confirms no syntax errors after editing f-strings.
+Given the project's intentionally minimal test harness (`backend/scripts/test_profile_format.py` only), the change is verified via:
+
+- **Static check**: a one-shot regex assertion against the patched module ensuring zero CJK characters in the seven owned regions. This can be a quick `python -c` invocation during PR review.
+- **Round-trip smoke test**: instantiate `OasisProfileGenerator()`, call `_build_individual_persona_prompt(...)` and `_build_group_persona_prompt(...)` with representative inputs, and verify all required interpolations appear in the output and no CJK characters remain.
+- **Fallback rendering**: simulate a JSON parse failure and verify the English fallback persona template is produced.
 
 ### Integration Tests
 
-- **(Manual)** Run the prompt builders directly under each locale:
-  - `set_locale("en")` →
-    `OasisProfileGenerator()._build_individual_persona_prompt("Alice", "Student", "summary", {"k": "v"}, "ctx")`
-    — assert no CJK codepoints in the output, assert the English
-    locale postfix appears via `get_language_instruction()` (which is
-    `"Please respond in English."`).
-  - `set_locale("zh")` → same call → assert the locale postfix is
-    `"请使用中文回答。"`.
-- These do not require an LLM call; they only verify the rendered
-  prompt string.
+- **Step 2 profile generation under EN locale**: run a small batched profile generation against a real Graphiti graph with locale `en`. Verify produced profiles have English `bio` / `persona` and pass the existing OASIS profile-format check.
 
-### E2E Tests
+### E2E/UI Tests
 
-- **(Manual, optional, preferred but skippable when no LLM key
-  present)** Run `npm run dev` and trigger Step 2 profile generation
-  from the UI under English locale on a small entity set; spot-check
-  that bios and persona prose are in English. Skip if a live LLM key
-  is unavailable in CI; sibling specs #2/#4/#5 used the same manual
-  E2E approach.
+Not applicable — change does not affect frontend.
 
-### Performance / Load
+### Performance/Load
 
-Not applicable. Prompt translation has no measurable performance
-impact.
+Not applicable — token counts may differ slightly between Chinese and English renderings, but the LLM call has no `max_tokens` cap and remains within provider-acceptable limits.
 
 ## Optional Sections
 
 ### Security Considerations
 
-No security implications. No new external surfaces; no new data
-retention; no change to authentication or authorization.
+Not applicable. Translation does not introduce new authentication, authorization, data-handling, or input-validation paths.
+
+### Performance & Scalability
+
+Not applicable.
 
 ### Migration Strategy
 
-No migration required. The change is forward-compatible: a deployment
-that picks up the translated prompts continues to serve users on the
-`zh` locale via the unchanged
-`get_language_instruction()` postfix mechanism.
+Not applicable. The change is a single in-place edit; no data migration. Rollback is `git revert`.
 
 ## Supporting References
 
-- `gap-analysis.md` — option evaluation and effort/risk sizing.
-- `research.md` — discovery findings, design decisions (in particular
-  the "drop the country language hint" decision), and risk register.
-- `requirements.md` — EARS requirements with numeric IDs.
-- Sibling specs `i18n-ontology-generator-prompts`,
-  `i18n-simulation-config-generator-prompts`,
-  `i18n-report-agent-prompts` — same translation pattern, already
-  merged.
+- `backend/app/services/oasis_profile_generator.py` — current Chinese prompt content (the source of translation).
+- `backend/app/utils/locale.py` — locale resolver.
+- `backend/app/api/simulation.py` — call site.
+- `.kiro/specs/i18n-ontology-generator-prompts/design.md` — adjacent reference design for in-place prompt translation.
+- `.ticket/25.md` — ticket snapshot.
