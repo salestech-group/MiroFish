@@ -1116,6 +1116,78 @@
     "generateInterviewQuestionsFailed": "Failed to generate interview questions: {error}",
     "generateInterviewSummaryFailed": "Failed to generate interview summary: {error}"
   },
+  "scripts": {
+    "test_profile_format": {
+      "header_main": "OASIS Profile Format Test",
+      "header_twitter": "1. Test Twitter Profile (CSV format)",
+      "header_reddit": "2. Test Reddit Profile (JSON detailed format)",
+      "file": "   File: {path}",
+      "rows": "   Rows: {count}",
+      "headers": "   Headers: {headers}",
+      "entries": "   Entries: {count}",
+      "fields": "   Fields: {fields}",
+      "sample_data_row": "\n   Sample data (first row):",
+      "sample_data_entry": "\n   Sample data (first entry):",
+      "sample_kv": "     {key}: {value}",
+      "error_missing_fields": "\n   [ERROR] Missing fields: {fields}",
+      "error_missing_required": "\n   [ERROR] Missing required fields: {fields}",
+      "pass_all_fields": "\n   [OK] All required fields present",
+      "info_optional": "   [INFO] Optional fields: {fields}",
+      "footer_done": "Test complete!",
+      "ref_header_main": "OASIS expected profile format reference",
+      "ref_header_twitter": "1. Twitter Profile (CSV format)",
+      "ref_header_reddit": "2. Reddit Profile (JSON detailed format)"
+    }
+  },
+  "zep_graph_memory_updater": {
+    "action": {
+      "create_post_with_content": "posted a tweet: \"{content}\"",
+      "create_post_empty": "posted a tweet",
+      "like_post_full": "liked {author}'s post: \"{content}\"",
+      "like_post_content": "liked a post: \"{content}\"",
+      "like_post_author": "liked a post by {author}",
+      "like_post_empty": "liked a post",
+      "dislike_post_full": "disliked {author}'s post: \"{content}\"",
+      "dislike_post_content": "disliked a post: \"{content}\"",
+      "dislike_post_author": "disliked a post by {author}",
+      "dislike_post_empty": "disliked a post",
+      "repost_full": "reposted {author}'s post: \"{content}\"",
+      "repost_content": "reposted a post: \"{content}\"",
+      "repost_author": "reposted a post by {author}",
+      "repost_empty": "reposted a post",
+      "quote_post_full": "quoted {author}'s post \"{content}\"",
+      "quote_post_content": "quoted a post \"{content}\"",
+      "quote_post_author": "quoted a post by {author}",
+      "quote_post_empty": "quoted a post",
+      "quote_post_comment_suffix": ", and commented: \"{quote}\"",
+      "follow_user": "followed user \"{target}\"",
+      "follow_empty": "followed a user",
+      "create_comment_full": "commented under {author}'s post \"{post_content}\": \"{content}\"",
+      "create_comment_post_only": "commented under the post \"{post_content}\": \"{content}\"",
+      "create_comment_author_only": "commented under {author}'s post: \"{content}\"",
+      "create_comment_content_only": "commented: \"{content}\"",
+      "create_comment_empty": "posted a comment",
+      "like_comment_full": "liked {author}'s comment: \"{content}\"",
+      "like_comment_content": "liked a comment: \"{content}\"",
+      "like_comment_author": "liked a comment by {author}",
+      "like_comment_empty": "liked a comment",
+      "dislike_comment_full": "disliked {author}'s comment: \"{content}\"",
+      "dislike_comment_content": "disliked a comment: \"{content}\"",
+      "dislike_comment_author": "disliked a comment by {author}",
+      "dislike_comment_empty": "disliked a comment",
+      "search_query": "searched for \"{query}\"",
+      "search_empty": "performed a search",
+      "search_user_query": "searched for user \"{query}\"",
+      "search_user_empty": "searched for a user",
+      "mute_user": "muted user \"{target}\"",
+      "mute_empty": "muted a user",
+      "generic": "performed {action_type} action"
+    },
+    "platform": {
+      "twitter": "World 1",
+      "reddit": "World 2"
+    }
+  },
   "task": {
     "simulation": {
       "prepare": {

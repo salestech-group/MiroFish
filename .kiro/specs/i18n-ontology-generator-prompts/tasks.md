@@ -56,3 +56,11 @@
   - Optional: extend the existing `pytest`-style harness if a thin assertion fits the project's minimal test surface
   - Observable completion: running the script exits 0 against the patched module; running it against a hypothetical revert of the patch exits non-zero
   - _Requirements: 1.1, 2.6_
+
+## 8. Follow-up from i18n-mandarin-gap-coverage audit (issue #46)
+
+- [ ] 8.1 Externalize or translate the Han-character literals emitted by `generate_python_code`
+  - File: `backend/app/services/ontology_generator.py` lines 409, 410, 417, 444, 473.
+  - These five strings are written into the auto-generated ontology Python file. Decision needed: either translate the inline literals to English (matching the rest of the i18n initiative) **or** route them through `t()` if downstream tooling needs locale-awareness. Cross-spec linkage: tracked by audit at `.kiro/specs/i18n-mandarin-gap-coverage/prompt-coverage-audit.md`.
+  - Observable completion: `rg -nP "[\p{Han}]" backend/app/services/ontology_generator.py` returns zero hits.
+  - _Requirements: tracked by issue #46 follow-up_
