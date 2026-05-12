@@ -1,0 +1,24 @@
+{
+  "feature_name": "i18n-mandarin-gap-coverage",
+  "created_at": "2026-05-12T08:18:38Z",
+  "updated_at": "2026-05-12T09:10:00Z",
+  "language": "en",
+  "phase": "implementation-partial",
+  "ticket": 46,
+  "ticket_snapshot": ".ticket/46.md",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}

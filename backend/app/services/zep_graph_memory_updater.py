@@ -64,139 +64,145 @@ class AgentActivity:
     def _describe_create_post(self) -> str:
         content = self.action_args.get("content", "")
         if content:
-            return f"发布了一条帖子：「{content}」"
-        return "发布了一条帖子"
-    
+            return t("zep_graph_memory_updater.action.create_post_with_content", content=content)
+        return t("zep_graph_memory_updater.action.create_post_empty")
+
     def _describe_like_post(self) -> str:
         """Like a post — includes the post text and author when available."""
         post_content = self.action_args.get("post_content", "")
         post_author = self.action_args.get("post_author_name", "")
-        
+
         if post_content and post_author:
-            return f"点赞了{post_author}的帖子：「{post_content}」"
+            return t("zep_graph_memory_updater.action.like_post_full", author=post_author, content=post_content)
         elif post_content:
-            return f"点赞了一条帖子：「{post_content}」"
+            return t("zep_graph_memory_updater.action.like_post_content", content=post_content)
         elif post_author:
-            return f"点赞了{post_author}的一条帖子"
-        return "点赞了一条帖子"
+            return t("zep_graph_memory_updater.action.like_post_author", author=post_author)
+        return t("zep_graph_memory_updater.action.like_post_empty")
     
     def _describe_dislike_post(self) -> str:
         """Dislike a post — includes the post text and author when available."""
         post_content = self.action_args.get("post_content", "")
         post_author = self.action_args.get("post_author_name", "")
-        
+
         if post_content and post_author:
-            return f"踩了{post_author}的帖子：「{post_content}」"
+            return t("zep_graph_memory_updater.action.dislike_post_full", author=post_author, content=post_content)
         elif post_content:
-            return f"踩了一条帖子：「{post_content}」"
+            return t("zep_graph_memory_updater.action.dislike_post_content", content=post_content)
         elif post_author:
-            return f"踩了{post_author}的一条帖子"
-        return "踩了一条帖子"
-    
+            return t("zep_graph_memory_updater.action.dislike_post_author", author=post_author)
+        return t("zep_graph_memory_updater.action.dislike_post_empty")
+
     def _describe_repost(self) -> str:
         """Repost — includes the original post text and author when available."""
         original_content = self.action_args.get("original_content", "")
         original_author = self.action_args.get("original_author_name", "")
-        
+
         if original_content and original_author:
-            return f"转发了{original_author}的帖子：「{original_content}」"
+            return t("zep_graph_memory_updater.action.repost_full", author=original_author, content=original_content)
         elif original_content:
-            return f"转发了一条帖子：「{original_content}」"
+            return t("zep_graph_memory_updater.action.repost_content", content=original_content)
         elif original_author:
-            return f"转发了{original_author}的一条帖子"
-        return "转发了一条帖子"
+            return t("zep_graph_memory_updater.action.repost_author", author=original_author)
+        return t("zep_graph_memory_updater.action.repost_empty")
     
     def _describe_quote_post(self) -> str:
         """Quote-post — includes the original post, author, and the quote comment."""
         original_content = self.action_args.get("original_content", "")
         original_author = self.action_args.get("original_author_name", "")
         quote_content = self.action_args.get("quote_content", "") or self.action_args.get("content", "")
-        
-        base = ""
+
         if original_content and original_author:
-            base = f"引用了{original_author}的帖子「{original_content}」"
+            base = t("zep_graph_memory_updater.action.quote_post_full", author=original_author, content=original_content)
         elif original_content:
-            base = f"引用了一条帖子「{original_content}」"
+            base = t("zep_graph_memory_updater.action.quote_post_content", content=original_content)
         elif original_author:
-            base = f"引用了{original_author}的一条帖子"
+            base = t("zep_graph_memory_updater.action.quote_post_author", author=original_author)
         else:
-            base = "引用了一条帖子"
-        
+            base = t("zep_graph_memory_updater.action.quote_post_empty")
+
         if quote_content:
-            base += f"，并评论道：「{quote_content}」"
+            base += t("zep_graph_memory_updater.action.quote_post_comment_suffix", quote=quote_content)
         return base
-    
+
     def _describe_follow(self) -> str:
         """Follow a user — includes the followed user's name."""
         target_user_name = self.action_args.get("target_user_name", "")
-        
+
         if target_user_name:
-            return f"关注了用户「{target_user_name}」"
-        return "关注了一个用户"
+            return t("zep_graph_memory_updater.action.follow_user", target=target_user_name)
+        return t("zep_graph_memory_updater.action.follow_empty")
     
     def _describe_create_comment(self) -> str:
         """Create a comment — includes the comment text and the parent post."""
         content = self.action_args.get("content", "")
         post_content = self.action_args.get("post_content", "")
         post_author = self.action_args.get("post_author_name", "")
-        
+
         if content:
             if post_content and post_author:
-                return f"在{post_author}的帖子「{post_content}」下评论道：「{content}」"
+                return t("zep_graph_memory_updater.action.create_comment_full",
+                         author=post_author, post_content=post_content, content=content)
             elif post_content:
-                return f"在帖子「{post_content}」下评论道：「{content}」"
+                return t("zep_graph_memory_updater.action.create_comment_post_only",
+                         post_content=post_content, content=content)
             elif post_author:
-                return f"在{post_author}的帖子下评论道：「{content}」"
-            return f"评论道：「{content}」"
-        return "发表了评论"
-    
+                return t("zep_graph_memory_updater.action.create_comment_author_only",
+                         author=post_author, content=content)
+            return t("zep_graph_memory_updater.action.create_comment_content_only", content=content)
+        return t("zep_graph_memory_updater.action.create_comment_empty")
+
     def _describe_like_comment(self) -> str:
         """Like a comment — includes the comment text and author when available."""
         comment_content = self.action_args.get("comment_content", "")
         comment_author = self.action_args.get("comment_author_name", "")
-        
+
         if comment_content and comment_author:
-            return f"点赞了{comment_author}的评论：「{comment_content}」"
+            return t("zep_graph_memory_updater.action.like_comment_full", author=comment_author, content=comment_content)
         elif comment_content:
-            return f"点赞了一条评论：「{comment_content}」"
+            return t("zep_graph_memory_updater.action.like_comment_content", content=comment_content)
         elif comment_author:
-            return f"点赞了{comment_author}的一条评论"
-        return "点赞了一条评论"
-    
+            return t("zep_graph_memory_updater.action.like_comment_author", author=comment_author)
+        return t("zep_graph_memory_updater.action.like_comment_empty")
+
     def _describe_dislike_comment(self) -> str:
         """Dislike a comment — includes the comment text and author when available."""
         comment_content = self.action_args.get("comment_content", "")
         comment_author = self.action_args.get("comment_author_name", "")
-        
+
         if comment_content and comment_author:
-            return f"踩了{comment_author}的评论：「{comment_content}」"
+            return t("zep_graph_memory_updater.action.dislike_comment_full", author=comment_author, content=comment_content)
         elif comment_content:
-            return f"踩了一条评论：「{comment_content}」"
+            return t("zep_graph_memory_updater.action.dislike_comment_content", content=comment_content)
         elif comment_author:
-            return f"踩了{comment_author}的一条评论"
-        return "踩了一条评论"
-    
+            return t("zep_graph_memory_updater.action.dislike_comment_author", author=comment_author)
+        return t("zep_graph_memory_updater.action.dislike_comment_empty")
+
     def _describe_search(self) -> str:
         """Search posts — includes the search query."""
         query = self.action_args.get("query", "") or self.action_args.get("keyword", "")
-        return f"搜索了「{query}」" if query else "进行了搜索"
-    
+        if query:
+            return t("zep_graph_memory_updater.action.search_query", query=query)
+        return t("zep_graph_memory_updater.action.search_empty")
+
     def _describe_search_user(self) -> str:
         """Search users — includes the search query."""
         query = self.action_args.get("query", "") or self.action_args.get("username", "")
-        return f"搜索了用户「{query}」" if query else "搜索了用户"
-    
+        if query:
+            return t("zep_graph_memory_updater.action.search_user_query", query=query)
+        return t("zep_graph_memory_updater.action.search_user_empty")
+
     def _describe_mute(self) -> str:
         """Mute a user — includes the muted user's name."""
         target_user_name = self.action_args.get("target_user_name", "")
-        
+
         if target_user_name:
-            return f"屏蔽了用户「{target_user_name}」"
-        return "屏蔽了一个用户"
-    
+            return t("zep_graph_memory_updater.action.mute_user", target=target_user_name)
+        return t("zep_graph_memory_updater.action.mute_empty")
+
     def _describe_generic(self) -> str:
         # Fallback narration for action types not handled explicitly above.
-        return f"执行了{self.action_type}操作"
+        return t("zep_graph_memory_updater.action.generic", action_type=self.action_type)
 
 
 class ZepGraphMemoryUpdater:
@@ -219,11 +225,8 @@ class ZepGraphMemoryUpdater:
     # Number of activities to accumulate per platform before sending a batch.
     BATCH_SIZE = 5
 
-    # Platform display names used for console / log output.
-    PLATFORM_DISPLAY_NAMES = {
-        'twitter': '世界1',
-        'reddit': '世界2',
-    }
+    # Platform display names are resolved through the locale catalogue
+    # at `zep_graph_memory_updater.platform.<name>`. See `display_name`.
 
     # Pause between sends (seconds) to avoid hammering the Zep API.
     SEND_INTERVAL = 0.5
@@ -263,8 +266,15 @@ class ZepGraphMemoryUpdater:
         logger.info(t("log.zep_graph_memory_updater.m001", graph_id=graph_id, self=self.BATCH_SIZE))
     
     def _get_platform_display_name(self, platform: str) -> str:
-        """Return the human-friendly display name for a platform."""
-        return self.PLATFORM_DISPLAY_NAMES.get(platform.lower(), platform)
+        """Return the human-friendly display name for a platform.
+
+        The translated value lives in the locale catalogue. When a platform
+        name has no catalogue entry, `t()` returns the lookup key; in that
+        case we fall back to the raw platform string for stability.
+        """
+        key = f"zep_graph_memory_updater.platform.{platform.lower()}"
+        value = t(key)
+        return platform if value == key else value
     
     def start(self):
         """Start the background worker thread."""

@@ -107,3 +107,12 @@
   - Observable completion: `git status` shows only `backend/app/services/simulation_config_generator.py` modified, with no harness artefacts left behind (preferred); or, if kept, the harness lives under `backend/scripts/` with a one-line module docstring linking back to spec `i18n-simulation-config-generator-prompts`.
   - _Requirements: 9.3_
   - _Depends: 5.1, 5.2, 5.3, 5.4_
+
+## 6. Follow-up from i18n-mandarin-gap-coverage audit (issue #46)
+
+- [ ] 6.1 Externalize the two remaining Chinese exception messages
+  - File: `backend/app/services/simulation_config_generator.py` lines 240 and 484.
+  - Line 240: `raise ValueError("LLM_API_KEY 未配置")` — translate to English (`raise ValueError("LLM_API_KEY is not configured")`) or route through `t()` if user-visible. Cross-spec linkage: tracked by audit at `.kiro/specs/i18n-mandarin-gap-coverage/prompt-coverage-audit.md`.
+  - Line 484: `raise last_error or Exception("LLM调用失败")` — same treatment (English equivalent: `"LLM call failed"`).
+  - Observable completion: `rg -nP "[\p{Han}]" backend/app/services/simulation_config_generator.py` returns zero hits.
+  - _Requirements: tracked by issue #46 follow-up_
