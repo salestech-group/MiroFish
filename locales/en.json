@@ -465,6 +465,12 @@
     "envNotRunningShort": "Environment not running or closed",
     "requireGraphIdAndQuery": "Please provide graph_id and query",
     "initReportAgent": "Initializing Report Agent...",
+    "alreadyPreparedShort": "Preparation already complete",
+    "simDirNotFound": "Simulation directory does not exist",
+    "simMissingRequiredFiles": "Missing required files",
+    "simStatusNotPrepared": "Not in the prepared list or config_generated is false: status={status}, config_generated={config_generated}",
+    "simStatusFileReadFailed": "Failed to read status file: {error}",
+    "unknownFilename": "Unknown file",
     "error": {
       "simulation": {
         "m001": "Neo4j is not configured",
@@ -1109,5 +1115,18 @@
     "llmSelectAgentFailed": "LLM agent selection failed, using default selection: {error}",
     "generateInterviewQuestionsFailed": "Failed to generate interview questions: {error}",
     "generateInterviewSummaryFailed": "Failed to generate interview summary: {error}"
+  },
+  "task": {
+    "simulation": {
+      "prepare": {
+        "startMessage": "Starting simulation environment preparation...",
+        "stage": {
+          "reading": "Reading graph entities",
+          "generatingProfiles": "Generating agent profiles",
+          "generatingConfig": "Generating simulation config",
+          "copyingScripts": "Preparing simulation scripts"
+        }
+      }
+    }
   }
 }
