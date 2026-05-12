@@ -258,7 +258,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
     simulation_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
 
     if not os.path.exists(simulation_dir):
-        return False, {"reason": "模拟目录不存在"}
+        return False, {"reason": t("api.simDirNotFound")}
 
     # Required files (scripts are not included; they live in backend/scripts/).
     required_files = [
@@ -279,7 +279,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
     
     if missing_files:
         return False, {
-            "reason": "缺少必要文件",
+            "reason": t("api.simMissingRequiredFiles"),
             "missing_files": missing_files,
             "existing_files": existing_files
         }
@@ -335,13 +335,13 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         else:
             logger.warning(t("log.simulation_api.m017", simulation_id=simulation_id, status=status, config_generated=config_generated))
             return False, {
-                "reason": f"状态不在已准备列表中或config_generated为false: status={status}, config_generated={config_generated}",
+                "reason": t("api.simStatusNotPrepared", status=status, config_generated=config_generated),
                 "status": status,
                 "config_generated": config_generated
             }
-            
+
     except Exception as e:
-        return False, {"reason": f"读取状态文件失败: {str(e)}"}
+        return False, {"reason": t("api.simStatusFileReadFailed", error=str(e))}
 
 
 @simulation_bp.route('/prepare', methods=['POST'])
@@ -423,7 +423,7 @@ def prepare_simulation():
                     "data": {
                         "simulation_id": simulation_id,
                         "status": "ready",
-                        "message": "已有完成的准备工作，无需重复生成",
+                        "message": t("api.alreadyPrepared"),
                         "already_prepared": True,
                         "prepare_info": prepare_info
                     }
@@ -487,7 +487,7 @@ def prepare_simulation():
                     task_id,
                     status=TaskStatus.PROCESSING,
                     progress=0,
-                    message="开始准备模拟环境..."
+                    message=t("task.simulation.prepare.startMessage")
                 )
                 
                 # Per-stage progress detail (used by the progress callback below).
@@ -506,10 +506,10 @@ def prepare_simulation():
                     current_progress = int(start + (end - start) * progress / 100)
 
                     stage_names = {
-                        "reading": "读取图谱实体",
-                        "generating_profiles": "生成Agent人设",
-                        "generating_config": "生成模拟配置",
-                        "copying_scripts": "准备模拟脚本"
+                        "reading": t("task.simulation.prepare.stage.reading"),
+                        "generating_profiles": t("task.simulation.prepare.stage.generatingProfiles"),
+                        "generating_config": t("task.simulation.prepare.stage.generatingConfig"),
+                        "copying_scripts": t("task.simulation.prepare.stage.copyingScripts")
                     }
                     
                     stage_index = list(stage_weights.keys()).index(stage) + 1 if stage in stage_weights else 1
@@ -586,7 +586,7 @@ def prepare_simulation():
                 "simulation_id": simulation_id,
                 "task_id": task_id,
                 "status": "preparing",
-                "message": "准备任务已启动，请通过 /api/simulation/prepare/status 查询进度",
+                "message": t("api.prepareStarted"),
                 "already_prepared": False,
                 "expected_entities_count": state.entities_count,  # Expected total agent count.
                 "entity_types": state.entity_types  # Entity-type list.
@@ -653,7 +653,7 @@ def get_prepare_status():
                         "simulation_id": simulation_id,
                         "status": "ready",
                         "progress": 100,
-                        "message": "已有完成的准备工作",
+                        "message": t("api.alreadyPreparedShort"),
                         "already_prepared": True,
                         "prepare_info": prepare_info
                     }
@@ -669,7 +669,7 @@ def get_prepare_status():
                         "simulation_id": simulation_id,
                         "status": "not_started",
                         "progress": 0,
-                        "message": "尚未开始准备，请调用 /api/simulation/prepare 开始",
+                        "message": t("api.notStartedPrepare"),
                         "already_prepared": False
                     }
                 })
@@ -693,7 +693,7 @@ def get_prepare_status():
                             "task_id": task_id,
                             "status": "ready",
                             "progress": 100,
-                            "message": "任务已完成（准备工作已存在）",
+                            "message": t("api.taskCompletedPrepared"),
                             "already_prepared": True,
                             "prepare_info": prepare_info
                         }
@@ -917,7 +917,7 @@ def get_simulation_history():
             project = ProjectManager.get_project(sim.project_id)
             if project and hasattr(project, 'files') and project.files:
                 sim_dict["files"] = [
-                    {"filename": f.get("filename", "未知文件")}
+                    {"filename": f.get("filename", t("api.unknownFilename"))}
                     for f in project.files[:3]
                 ]
             else:
@@ -1949,7 +1949,7 @@ def get_simulation_posts(simulation_id: str):
                     "platform": platform,
                     "count": 0,
                     "posts": [],
-                    "message": "数据库不存在，模拟可能尚未运行"
+                    "message": t("api.dbNotExist")
                 }
             })
         
@@ -2544,9 +2544,9 @@ def get_env_status():
         env_status = SimulationRunner.get_env_status_detail(simulation_id)
 
         if env_alive:
-            message = "环境正在运行，可以接收Interview命令"
+            message = t("api.envRunning")
         else:
-            message = "环境未运行或已关闭"
+            message = t("api.envNotRunningShort")
 
         return jsonify({
             "success": True,

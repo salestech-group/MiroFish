@@ -21,11 +21,26 @@ from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 from ..utils.locale import t
 
-# In-memory cache for graph data to avoid hammering Zep's rate-limited API.
-# Stale cache is served instantly on 429; a background thread refreshes it.
+# In-memory cache for graph data fetched from Neo4j (now co-located with the
+# Flask app). The cache primarily smooths concurrent polls — the build step
+# triggers many overlapping requests from the frontend's progress poller.
+#
+# Three freshness windows are used:
+#   - _GRAPH_CACHE_TTL_BUILDING: short window while the owning project is still
+#                                in GRAPH_BUILDING, so newly extracted entities
+#                                surface within one frontend poll cycle.
+#   - _GRAPH_CACHE_TTL_STABLE:   long window once the graph is stable, to avoid
+#                                pointless re-fetches.
+#   - _GRAPH_EMPTY_CACHE_TTL:    separate short window for empty results, so a
+#                                cached {nodes: 0, edges: 0} at the start of a
+#                                build does not mask the real data once it
+#                                appears.
+# Selection is delegated to `_resolve_ttl` below.
 _graph_data_cache: dict = {}        # graph_id -> {"data": ..., "ts": float}
 _graph_refresh_locks: dict = {}     # graph_id -> threading.Lock (one refresh at a time)
-_GRAPH_CACHE_TTL = 300              # seconds before triggering a background refresh
+_GRAPH_CACHE_TTL_BUILDING = 15      # seconds, while the owning project is still building
+_GRAPH_CACHE_TTL_STABLE = 300       # seconds, once the graph build is complete
+_GRAPH_EMPTY_CACHE_TTL = 5          # seconds, for cached {nodes: 0, edges: 0}
 
 logger = get_logger('mirofish.api')
 
@@ -549,6 +564,32 @@ def list_tasks():
 
 # ============== Graph data endpoints ==============
 
+def _resolve_ttl(graph_id: str, is_empty: bool) -> int:
+    """Return the freshness window (seconds) for a cached graph entry.
+
+    Selection order:
+      1. ``is_empty`` -> ``_GRAPH_EMPTY_CACHE_TTL``
+      2. owning project is ``GRAPH_BUILDING`` -> ``_GRAPH_CACHE_TTL_BUILDING``
+      3. otherwise (other status, no owner found, or lookup failure)
+         -> ``_GRAPH_CACHE_TTL_STABLE``
+
+    Never raises: any exception from the project lookup is caught, logged at
+    WARNING, and collapsed to the stable TTL so the request thread stays
+    healthy.
+    """
+    if is_empty:
+        return _GRAPH_EMPTY_CACHE_TTL
+    try:
+        for project in ProjectManager.list_projects():
+            if project.graph_id == graph_id:
+                if project.status == ProjectStatus.GRAPH_BUILDING:
+                    return _GRAPH_CACHE_TTL_BUILDING
+                return _GRAPH_CACHE_TTL_STABLE
+    except Exception as e:
+        logger.warning(f"TTL resolution failed for {graph_id}: {str(e)[:100]}")
+    return _GRAPH_CACHE_TTL_STABLE
+
+
 def _refresh_graph_cache(graph_id: str):
     """Background thread: fetch graph data from Neo4j and update cache."""
     lock = _graph_refresh_locks.setdefault(graph_id, threading.Lock())
@@ -586,7 +627,14 @@ def get_graph_data(graph_id: str):
     cached = _graph_data_cache.get(graph_id)
     age = time.time() - cached["ts"] if cached else None
 
-    if cached and age < _GRAPH_CACHE_TTL:
+    if cached:
+        data = cached["data"]
+        is_empty = (data.get("node_count", 0) == 0) and (data.get("edge_count", 0) == 0)
+        effective_ttl = _resolve_ttl(graph_id, is_empty)
+    else:
+        effective_ttl = _GRAPH_CACHE_TTL_STABLE
+
+    if cached and age < effective_ttl:
         # Fresh cache — return immediately
         return jsonify({"success": True, "data": cached["data"], "cached": True})
 
