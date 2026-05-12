@@ -675,22 +675,16 @@ let lastLoggedConfigStage = ''
 const useCustomRounds = ref(false) // Default: use the auto-derived round count.
 const customMaxRounds = ref(40)   // Default recommendation: 40 rounds.
 
-// Backend stage tokens. Each row maps a backend-emitted stage name to a phase
-// number. Both legacy Chinese display strings and the snake_case identifiers
-// are kept so the watcher remains correct before, during, and after the
-// downstream backend prompt translation (issue #25 / spec
-// i18n-report-agent-prompts). Adding a new stage form is a one-line edit.
-// i18n-allow-block: backend stage tokens; multi-language tolerance per spec
-// i18n-frontend-ui-strings, requirement 4.
+// Backend stage tokens. Each row maps a backend-emitted stage name (the
+// stable snake_case identifier from `current_stage` in the prepare-status
+// response) to a phase number. The backend's human-readable label travels in
+// `current_stage_name` and is already locale-aware; this map keys off the
+// identifier so it stays correct regardless of UI language.
 const STAGE_PHASE_MAP = Object.freeze({
-  '生成Agent人设':       1,
   'generating_profiles': 1,
-  '生成模拟配置':        2,
   'generating_config':   2,
-  '准备模拟脚本':        2,
   'copying_scripts':     2,
 })
-// i18n-allow-block-end
 
 // Watch stage to update phase
 watch(currentStage, (newStage, oldStage) => {
@@ -872,7 +866,7 @@ const pollPrepareStatus = async () => {
 
       // Parse the progress detail and emit one log line per change.
       if (data.progress_detail) {
-        currentStage.value = data.progress_detail.current_stage_name || ''
+        currentStage.value = data.progress_detail.current_stage || ''
 
         const detail = data.progress_detail
         const logKey = `${detail.current_stage}-${detail.current_item}-${detail.total_items}`

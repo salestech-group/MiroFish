@@ -465,6 +465,12 @@
     "envNotRunningShort": "环境未运行或已关闭",
     "requireGraphIdAndQuery": "请提供 graph_id 和 query",
     "initReportAgent": "初始化Report Agent...",
+    "alreadyPreparedShort": "已有完成的准备工作",
+    "simDirNotFound": "模拟目录不存在",
+    "simMissingRequiredFiles": "缺少必要文件",
+    "simStatusNotPrepared": "状态不在已准备列表中或config_generated为false: status={status}, config_generated={config_generated}",
+    "simStatusFileReadFailed": "读取状态文件失败: {error}",
+    "unknownFilename": "未知文件",
     "error": {
       "simulation": {
         "m001": "NEO4J未配置",
@@ -1109,5 +1115,18 @@
     "llmSelectAgentFailed": "LLM选择Agent失败，使用默认选择: {error}",
     "generateInterviewQuestionsFailed": "生成采访问题失败: {error}",
     "generateInterviewSummaryFailed": "生成采访摘要失败: {error}"
+  },
+  "task": {
+    "simulation": {
+      "prepare": {
+        "startMessage": "开始准备模拟环境...",
+        "stage": {
+          "reading": "读取图谱实体",
+          "generatingProfiles": "生成Agent人设",
+          "generatingConfig": "生成模拟配置",
+          "copyingScripts": "准备模拟脚本"
+        }
+      }
+    }
   }
 }
