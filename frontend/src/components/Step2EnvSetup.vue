@@ -814,7 +814,7 @@ const startPrepareSimulation = async () => {
       // Pull the expected agent total straight from the prepare response.
       if (res.data.expected_entities_count) {
         expectedTotal.value = res.data.expected_entities_count
-        addLog(t('log.zepEntitiesFound', { count: res.data.expected_entities_count }))
+        addLog(t('log.graphEntitiesFound', { count: res.data.expected_entities_count }))
         if (res.data.entity_types && res.data.entity_types.length > 0) {
           addLog(t('log.entityTypes', { types: res.data.entity_types.join(', ') }))
         }

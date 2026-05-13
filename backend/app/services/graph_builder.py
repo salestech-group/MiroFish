@@ -1,7 +1,7 @@
 """Graph build service.
 
 Pipeline step 2: build the project's standalone knowledge graph through the
-Zep/Graphiti API.
+Graphiti API.
 """
 
 import os
@@ -15,7 +15,7 @@ from .graphiti_adapter import GraphitiAdapter
 
 from ..config import Config
 from ..models.task import TaskManager, TaskStatus
-from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
+from ..utils.graph_paging import fetch_all_nodes, fetch_all_edges
 from .text_processor import TextProcessor
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.logger import get_logger
@@ -89,7 +89,7 @@ class GraphInfo:
 
 
 class GraphBuilderService:
-    """Drives knowledge-graph construction via the Zep/Graphiti API."""
+    """Drives knowledge-graph construction via the Graphiti API."""
     
     def __init__(self, api_key: Optional[str] = None):
         self.client = GraphitiAdapter()
@@ -112,7 +112,7 @@ class GraphBuilderService:
             graph_name: Display name for the graph.
             chunk_size: Characters per text chunk.
             chunk_overlap: Overlap (in characters) between consecutive chunks.
-            batch_size: Number of chunks pushed to Zep per batch.
+            batch_size: Number of chunks pushed to Graphiti per batch.
 
         Returns:
             The id of the task tracking the build.
@@ -196,11 +196,11 @@ class GraphBuilderService:
                 )
             )
             
-            # 5. Wait for Zep to finish processing the episodes.
+            # 5. Wait for Graphiti to finish processing the episodes.
             self.task_manager.update_task(
                 task_id,
                 progress=60,
-                message=t('progress.waitingZepProcess')
+                message=t('progress.waitingGraphProcess')
             )
             
             self._wait_for_episodes(
@@ -246,7 +246,7 @@ class GraphBuilderService:
             self.task_manager.fail_task(task_id, error_msg)
     
     def create_graph(self, name: str) -> str:
-        """Create a new Zep graph and return its id (public API)."""
+        """Create a new graph and return its id (public API)."""
         graph_id = f"mirofish_{uuid.uuid4().hex[:16]}"
         
         self.client.graph.create(
@@ -329,7 +329,7 @@ class GraphBuilderService:
         progress_callback: Optional[Callable] = None,
         timeout: int = 600
     ):
-        """Poll each episode until Zep marks it processed, or the timeout expires."""
+        """Poll each episode until Graphiti marks it processed, or the timeout expires."""
         if not episode_uuids:
             if progress_callback:
                 progress_callback(t('progress.noEpisodesWait'), 1.0)
@@ -369,7 +369,7 @@ class GraphBuilderService:
             elapsed = int(time.time() - start_time)
             if progress_callback:
                 progress_callback(
-                    t('progress.zepProcessing', completed=completed_count, total=total_episodes, pending=len(pending_episodes), elapsed=elapsed),
+                    t('progress.graphProcessing', completed=completed_count, total=total_episodes, pending=len(pending_episodes), elapsed=elapsed),
                     completed_count / total_episodes if total_episodes > 0 else 0
                 )
             

@@ -175,7 +175,7 @@ LLM_BOOST_BASE_URL=your_base_url_here
 LLM_BOOST_MODEL_NAME=your_model_name_here
 ```
 
-> **Note:** MiroFish has migrated from Zep Cloud to local **Graphiti + Neo4j**. No third-party knowledge-graph account is required — completely free with no rate limits.
+> **Note:** MiroFish uses local **Graphiti + Neo4j** as its knowledge-graph store. No third-party knowledge-graph account is required — completely free with no rate limits.
 
 #### 2. Install Dependencies
 

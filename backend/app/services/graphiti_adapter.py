@@ -1,14 +1,12 @@
 """
-Graphiti Adapter — Drop-in replacement for the Zep Cloud client.
+Graphiti Adapter — primary knowledge-graph client for MiroFish.
 
-Exposes the same namespace as the Zep client so all consuming code
-(graph_builder, zep_tools, zep_entity_reader, etc.) needs only a
-one-line import swap:
+Wraps the ``graphiti_core`` Graphiti instance and exposes a stable
+``self.client.graph.*`` namespace consumed by the graph build,
+retrieval, entity-reader, and memory-updater services.
 
     from .graphiti_adapter import GraphitiAdapter
     self.client = GraphitiAdapter()
-
-Then all  self.client.graph.*  calls work unchanged.
 """
 
 import asyncio
@@ -196,12 +194,12 @@ def _get_graphiti() -> Graphiti:
 
 
 # ---------------------------------------------------------------------------
-# Compatibility data classes (mimic Zep response objects)
+# Public response data classes returned by the adapter
 # ---------------------------------------------------------------------------
 
 @dataclass
 class _NodeResult:
-    """Zep-compatible node object."""
+    """Node response object exposed by the adapter."""
     uuid_: str
     name: str
     labels: List[str]
@@ -216,7 +214,7 @@ class _NodeResult:
 
 @dataclass
 class _EdgeResult:
-    """Zep-compatible edge object."""
+    """Edge response object exposed by the adapter."""
     uuid_: str
     name: str
     fact: str
@@ -235,7 +233,7 @@ class _EdgeResult:
 
 @dataclass
 class _EpisodeResult:
-    """Zep-compatible episode object — always processed (Graphiti is sync)."""
+    """Episode response object — always processed (Graphiti is synchronous)."""
     uuid_: str
     processed: bool = True
 
@@ -246,13 +244,13 @@ class _EpisodeResult:
 
 @dataclass
 class _SearchResults:
-    """Zep-compatible search result object."""
+    """Search result container exposed by the adapter."""
     edges: List[_EdgeResult] = field(default_factory=list)
     nodes: List[_NodeResult] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
-# Helpers: convert Graphiti objects → Zep-compatible objects
+# Helpers: convert Graphiti objects → adapter response objects
 # ---------------------------------------------------------------------------
 
 def _to_ts(dt: Optional[datetime]) -> Optional[str]:
@@ -556,12 +554,12 @@ class _GraphNamespace:
 
 
 # ---------------------------------------------------------------------------
-# Main adapter class — drop-in for  Zep(api_key=...)
+# Main adapter class
 # ---------------------------------------------------------------------------
 
 class GraphitiAdapter:
     """
-    Drop-in replacement for  `from zep_cloud.client import Zep`.
+    Primary knowledge-graph client for MiroFish.
 
     Usage:
         self.client = GraphitiAdapter()

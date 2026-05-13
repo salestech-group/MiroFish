@@ -1,5 +1,5 @@
 """
-Zep retrieval tool service.
+Graph retrieval tool service.
 
 Wraps graph search, node reads, and edge queries as tools consumed by the Report Agent.
 
@@ -20,10 +20,10 @@ from .graphiti_adapter import GraphitiAdapter
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.llm_client import LLMClient
-from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
+from ..utils.graph_paging import fetch_all_nodes, fetch_all_edges
 from ..utils.locale import t
 
-logger = get_logger('mirofish.zep_tools')
+logger = get_logger('mirofish.graph_retrieval_tools')
 
 
 @dataclass
@@ -391,8 +391,8 @@ class InterviewResult:
         return "\n".join(text_parts)
 
 
-class ZepToolsService:
-    """Zep retrieval tool service.
+class GraphToolsService:
+    """Graph retrieval tool service.
 
     Core retrieval tools (optimized):
         1. insight_forge - deep-insight search (most powerful; auto-generates sub-questions
@@ -420,7 +420,7 @@ class ZepToolsService:
         self.client = GraphitiAdapter()
         # LLM client used by InsightForge to generate sub-questions.
         self._llm_client = llm_client
-        logger.info(t("log.zep_tools.m001"))
+        logger.info(t("log.graph_retrieval_tools.m001"))
     
     @property
     def llm(self) -> LLMClient:
@@ -449,16 +449,16 @@ class ZepToolsService:
                             retry_after = e.headers.get('retry-after')
                         wait = float(retry_after) + 1 if retry_after else 65.0
                         logger.warning(
-                            t("log.zep_tools.m002", operation_name=operation_name, wait=wait, attempt=attempt + 1, max_retries=max_retries - 1)
+                            t("log.graph_retrieval_tools.m002", operation_name=operation_name, wait=wait, attempt=attempt + 1, max_retries=max_retries - 1)
                         )
                     else:
                         logger.warning(
-                            t("log.zep_tools.m003", operation_name=operation_name, attempt=attempt + 1, str=str(e)[:100], wait=wait)
+                            t("log.graph_retrieval_tools.m003", operation_name=operation_name, attempt=attempt + 1, str=str(e)[:100], wait=wait)
                         )
                     time.sleep(wait)
                     delay *= 2
                 else:
-                    logger.error(t("log.zep_tools.m004", operation_name=operation_name, max_retries=max_retries, str=str(e)))
+                    logger.error(t("log.graph_retrieval_tools.m004", operation_name=operation_name, max_retries=max_retries, str=str(e)))
 
         raise last_exception
     
@@ -471,8 +471,8 @@ class ZepToolsService:
     ) -> SearchResult:
         """Semantic graph search.
 
-        Performs a hybrid search (semantic + BM25) over the graph. If the Zep Cloud search
-        API is unavailable, falls back to local keyword matching.
+        Performs a hybrid search (semantic + BM25) over the graph. If the
+        Graphiti search API is unavailable, falls back to local keyword matching.
 
         Args:
             graph_id: Graph identifier (Standalone Graph).
@@ -483,9 +483,9 @@ class ZepToolsService:
         Returns:
             SearchResult: The search result.
         """
-        logger.info(t("log.zep_tools.m005", graph_id=graph_id, query=query[:50]))
+        logger.info(t("log.graph_retrieval_tools.m005", graph_id=graph_id, query=query[:50]))
 
-        # Try the Zep Cloud Search API first.
+        # Try the Graphiti search API first.
         try:
             search_results = self._call_with_retry(
                 func=lambda: self.client.graph.search(
@@ -527,7 +527,7 @@ class ZepToolsService:
                     if hasattr(node, 'summary') and node.summary:
                         facts.append(f"[{node.name}]: {node.summary}")
             
-            logger.info(t("log.zep_tools.m006", len=len(facts)))
+            logger.info(t("log.graph_retrieval_tools.m006", len=len(facts)))
             
             return SearchResult(
                 facts=facts,
@@ -538,7 +538,7 @@ class ZepToolsService:
             )
             
         except Exception as e:
-            logger.warning(t("log.zep_tools.m007", str=str(e)))
+            logger.warning(t("log.graph_retrieval_tools.m007", str=str(e)))
             # Fallback: local keyword-matching search.
             return self._local_search(graph_id, query, limit, scope)
     
@@ -549,7 +549,7 @@ class ZepToolsService:
         limit: int = 10,
         scope: str = "edges"
     ) -> SearchResult:
-        """Local keyword-matching search (fallback for the Zep Search API).
+        """Local keyword-matching search (fallback for the Graphiti search API).
 
         Loads all edges/nodes and matches them locally on the query keywords.
 
@@ -562,7 +562,7 @@ class ZepToolsService:
         Returns:
             SearchResult: The search result.
         """
-        logger.info(t("log.zep_tools.m008", query=query[:30]))
+        logger.info(t("log.graph_retrieval_tools.m008", query=query[:30]))
         
         facts = []
         edges_result = []
@@ -632,10 +632,10 @@ class ZepToolsService:
                     if node.summary:
                         facts.append(f"[{node.name}]: {node.summary}")
             
-            logger.info(t("log.zep_tools.m009", len=len(facts)))
+            logger.info(t("log.graph_retrieval_tools.m009", len=len(facts)))
             
         except Exception as e:
-            logger.error(t("log.zep_tools.m010", str=str(e)))
+            logger.error(t("log.graph_retrieval_tools.m010", str=str(e)))
         
         return SearchResult(
             facts=facts,
@@ -654,7 +654,7 @@ class ZepToolsService:
         Returns:
             List of nodes.
         """
-        logger.info(t("log.zep_tools.m011", graph_id=graph_id))
+        logger.info(t("log.graph_retrieval_tools.m011", graph_id=graph_id))
 
         nodes = fetch_all_nodes(self.client, graph_id)
 
@@ -669,7 +669,7 @@ class ZepToolsService:
                 attributes=node.attributes or {}
             ))
 
-        logger.info(t("log.zep_tools.m012", len=len(result)))
+        logger.info(t("log.graph_retrieval_tools.m012", len=len(result)))
         return result
 
     def get_all_edges(self, graph_id: str, include_temporal: bool = True) -> List[EdgeInfo]:
@@ -682,7 +682,7 @@ class ZepToolsService:
         Returns:
             List of edges, including created_at, valid_at, invalid_at, and expired_at.
         """
-        logger.info(t("log.zep_tools.m013", graph_id=graph_id))
+        logger.info(t("log.graph_retrieval_tools.m013", graph_id=graph_id))
 
         edges = fetch_all_edges(self.client, graph_id)
 
@@ -706,7 +706,7 @@ class ZepToolsService:
 
             result.append(edge_info)
 
-        logger.info(t("log.zep_tools.m014", len=len(result)))
+        logger.info(t("log.graph_retrieval_tools.m014", len=len(result)))
         return result
     
     def get_node_detail(self, node_uuid: str) -> Optional[NodeInfo]:
@@ -718,7 +718,7 @@ class ZepToolsService:
         Returns:
             Node info, or None if not found.
         """
-        logger.info(t("log.zep_tools.m015", node_uuid=node_uuid[:8]))
+        logger.info(t("log.graph_retrieval_tools.m015", node_uuid=node_uuid[:8]))
         
         try:
             node = self._call_with_retry(
@@ -737,7 +737,7 @@ class ZepToolsService:
                 attributes=node.attributes or {}
             )
         except Exception as e:
-            logger.error(t("log.zep_tools.m016", str=str(e)))
+            logger.error(t("log.graph_retrieval_tools.m016", str=str(e)))
             return None
     
     def get_node_edges(self, graph_id: str, node_uuid: str) -> List[EdgeInfo]:
@@ -752,7 +752,7 @@ class ZepToolsService:
         Returns:
             List of edges incident to the node.
         """
-        logger.info(t("log.zep_tools.m017", node_uuid=node_uuid[:8]))
+        logger.info(t("log.graph_retrieval_tools.m017", node_uuid=node_uuid[:8]))
         
         try:
             # Load every edge in the graph, then filter.
@@ -764,11 +764,11 @@ class ZepToolsService:
                 if edge.source_node_uuid == node_uuid or edge.target_node_uuid == node_uuid:
                     result.append(edge)
             
-            logger.info(t("log.zep_tools.m018", len=len(result)))
+            logger.info(t("log.graph_retrieval_tools.m018", len=len(result)))
             return result
             
         except Exception as e:
-            logger.warning(t("log.zep_tools.m019", str=str(e)))
+            logger.warning(t("log.graph_retrieval_tools.m019", str=str(e)))
             return []
     
     def get_entities_by_type(
@@ -785,7 +785,7 @@ class ZepToolsService:
         Returns:
             Entities matching the requested type.
         """
-        logger.info(t("log.zep_tools.m020", entity_type=entity_type))
+        logger.info(t("log.graph_retrieval_tools.m020", entity_type=entity_type))
         
         all_nodes = self.get_all_nodes(graph_id)
         
@@ -795,7 +795,7 @@ class ZepToolsService:
             if entity_type in node.labels:
                 filtered.append(node)
         
-        logger.info(t("log.zep_tools.m021", len=len(filtered), entity_type=entity_type))
+        logger.info(t("log.graph_retrieval_tools.m021", len=len(filtered), entity_type=entity_type))
         return filtered
     
     def get_entity_summary(
@@ -814,7 +814,7 @@ class ZepToolsService:
         Returns:
             Entity summary information.
         """
-        logger.info(t("log.zep_tools.m022", entity_name=entity_name))
+        logger.info(t("log.graph_retrieval_tools.m022", entity_name=entity_name))
 
         # First, search for information about this entity.
         search_result = self.search_graph(
@@ -853,7 +853,7 @@ class ZepToolsService:
         Returns:
             Statistics dictionary.
         """
-        logger.info(t("log.zep_tools.m023", graph_id=graph_id))
+        logger.info(t("log.graph_retrieval_tools.m023", graph_id=graph_id))
         
         nodes = self.get_all_nodes(graph_id)
         edges = self.get_all_edges(graph_id)
@@ -896,7 +896,7 @@ class ZepToolsService:
         Returns:
             Simulation context information.
         """
-        logger.info(t("log.zep_tools.m024", simulation_requirement=simulation_requirement[:50]))
+        logger.info(t("log.graph_retrieval_tools.m024", simulation_requirement=simulation_requirement[:50]))
 
         # Search for information related to the simulation requirement.
         search_result = self.search_graph(
@@ -960,7 +960,7 @@ class ZepToolsService:
         Returns:
             InsightForgeResult: The deep-insight retrieval result.
         """
-        logger.info(t("log.zep_tools.m025", query=query[:50]))
+        logger.info(t("log.graph_retrieval_tools.m025", query=query[:50]))
         
         result = InsightForgeResult(
             query=query,
@@ -976,7 +976,7 @@ class ZepToolsService:
             max_queries=max_sub_queries
         )
         result.sub_queries = sub_queries
-        logger.info(t("log.zep_tools.m026", len=len(sub_queries)))
+        logger.info(t("log.graph_retrieval_tools.m026", len=len(sub_queries)))
         
         # Step 2: Run a semantic search for each sub-question.
         all_facts = []
@@ -1053,7 +1053,7 @@ class ZepToolsService:
                         "related_facts": related_facts
                     })
             except Exception as e:
-                logger.debug(t("log.zep_tools.m027", uuid=uuid, e=e))
+                logger.debug(t("log.graph_retrieval_tools.m027", uuid=uuid, e=e))
                 continue
         
         result.entity_insights = entity_insights
@@ -1077,7 +1077,7 @@ class ZepToolsService:
         result.relationship_chains = relationship_chains
         result.total_relationships = len(relationship_chains)
         
-        logger.info(t("log.zep_tools.m028", result=result.total_facts, result_2=result.total_entities, result_3=result.total_relationships))
+        logger.info(t("log.graph_retrieval_tools.m028", result=result.total_facts, result_2=result.total_entities, result_3=result.total_relationships))
         return result
     
     def _generate_sub_queries(
@@ -1124,7 +1124,7 @@ class ZepToolsService:
             return [str(sq) for sq in sub_queries[:max_queries]]
 
         except Exception as e:
-            logger.warning(t("log.zep_tools.m029", str=str(e)))
+            logger.warning(t("log.graph_retrieval_tools.m029", str=str(e)))
             # Fallback: return variants of the original question.
             return [
                 query,
@@ -1159,7 +1159,7 @@ class ZepToolsService:
         Returns:
             PanoramaResult: The breadth-search result.
         """
-        logger.info(t("log.zep_tools.m030", query=query[:50]))
+        logger.info(t("log.graph_retrieval_tools.m030", query=query[:50]))
         
         result = PanoramaResult(query=query)
         
@@ -1222,7 +1222,7 @@ class ZepToolsService:
         result.active_count = len(active_facts)
         result.historical_count = len(historical_facts)
         
-        logger.info(t("log.zep_tools.m031", result=result.active_count, result_2=result.historical_count))
+        logger.info(t("log.graph_retrieval_tools.m031", result=result.active_count, result_2=result.historical_count))
         return result
     
     def quick_search(
@@ -1233,8 +1233,8 @@ class ZepToolsService:
     ) -> SearchResult:
         """QuickSearch - simple, lightweight retrieval.
 
-        Calls Zep's semantic search directly and returns the most relevant results. Use this
-        for simple, straightforward retrieval needs.
+        Calls Graphiti's semantic search directly and returns the most relevant
+        results. Use this for simple, straightforward retrieval needs.
 
         Args:
             graph_id: Graph identifier.
@@ -1244,7 +1244,7 @@ class ZepToolsService:
         Returns:
             SearchResult: The search result.
         """
-        logger.info(t("log.zep_tools.m032", query=query[:50]))
+        logger.info(t("log.graph_retrieval_tools.m032", query=query[:50]))
 
         # Delegate to the existing search_graph implementation.
         result = self.search_graph(
@@ -1254,7 +1254,7 @@ class ZepToolsService:
             scope="edges"
         )
         
-        logger.info(t("log.zep_tools.m033", result=result.total_count))
+        logger.info(t("log.graph_retrieval_tools.m033", result=result.total_count))
         return result
     
     def interview_agents(
@@ -1300,7 +1300,7 @@ class ZepToolsService:
         """
         from .simulation_runner import SimulationRunner
         
-        logger.info(t("log.zep_tools.m034", interview_requirement=interview_requirement[:50]))
+        logger.info(t("log.graph_retrieval_tools.m034", interview_requirement=interview_requirement[:50]))
         
         result = InterviewResult(
             interview_topic=interview_requirement,
@@ -1311,12 +1311,12 @@ class ZepToolsService:
         profiles = self._load_agent_profiles(simulation_id)
         
         if not profiles:
-            logger.warning(t("log.zep_tools.m035", simulation_id=simulation_id))
+            logger.warning(t("log.graph_retrieval_tools.m035", simulation_id=simulation_id))
             result.summary = "未找到可采访的Agent人设文件"
             return result
         
         result.total_agents = len(profiles)
-        logger.info(t("log.zep_tools.m036", len=len(profiles)))
+        logger.info(t("log.graph_retrieval_tools.m036", len=len(profiles)))
         
         # Step 2: Use the LLM to pick interview targets (returns a list of agent IDs).
         selected_agents, selected_indices, selection_reasoning = self._select_agents_for_interview(
@@ -1328,7 +1328,7 @@ class ZepToolsService:
         
         result.selected_agents = selected_agents
         result.selection_reasoning = selection_reasoning
-        logger.info(t("log.zep_tools.m037", len=len(selected_agents), selected_indices=selected_indices))
+        logger.info(t("log.graph_retrieval_tools.m037", len=len(selected_agents), selected_indices=selected_indices))
         
         # Step 3: Generate interview questions (if none were supplied).
         if not result.interview_questions:
@@ -1337,7 +1337,7 @@ class ZepToolsService:
                 simulation_requirement=simulation_requirement,
                 selected_agents=selected_agents
             )
-            logger.info(t("log.zep_tools.m038", len=len(result.interview_questions)))
+            logger.info(t("log.graph_retrieval_tools.m038", len=len(result.interview_questions)))
         
         # Merge the questions into a single interview prompt.
         combined_prompt = "\n".join([f"{i+1}. {q}" for i, q in enumerate(result.interview_questions)])
@@ -1368,7 +1368,7 @@ class ZepToolsService:
                     # Omitting platform asks the API to interview on both Twitter and Reddit.
                 })
             
-            logger.info(t("log.zep_tools.m039", len=len(interviews_request)))
+            logger.info(t("log.graph_retrieval_tools.m039", len=len(interviews_request)))
             
             # Call SimulationRunner's batch interview helper (no platform => both platforms).
             api_result = SimulationRunner.interview_agents_batch(
@@ -1378,12 +1378,12 @@ class ZepToolsService:
                 timeout=180.0   # Dual-platform mode needs a longer timeout.
             )
             
-            logger.info(t("log.zep_tools.m040", api_result=api_result.get('interviews_count', 0), api_result_2=api_result.get('success')))
+            logger.info(t("log.graph_retrieval_tools.m040", api_result=api_result.get('interviews_count', 0), api_result_2=api_result.get('success')))
             
             # Check whether the API call succeeded.
             if not api_result.get("success", False):
                 error_msg = api_result.get("error", "未知错误")
-                logger.warning(t("log.zep_tools.m041", error_msg=error_msg))
+                logger.warning(t("log.graph_retrieval_tools.m041", error_msg=error_msg))
                 result.summary = f"采访API调用失败：{error_msg}。请检查OASIS模拟环境状态。"
                 return result
             
@@ -1456,11 +1456,11 @@ class ZepToolsService:
             
         except ValueError as e:
             # Simulation environment is not running.
-            logger.warning(t("log.zep_tools.m042", e=e))
+            logger.warning(t("log.graph_retrieval_tools.m042", e=e))
             result.summary = f"采访失败：{str(e)}。模拟环境可能已关闭，请确保OASIS环境正在运行。"
             return result
         except Exception as e:
-            logger.error(t("log.zep_tools.m043", e=e))
+            logger.error(t("log.graph_retrieval_tools.m043", e=e))
             import traceback
             logger.error(traceback.format_exc())
             result.summary = f"采访过程发生错误：{str(e)}"
@@ -1473,7 +1473,7 @@ class ZepToolsService:
                 interview_requirement=interview_requirement
             )
         
-        logger.info(t("log.zep_tools.m044", result=result.interviewed_count))
+        logger.info(t("log.graph_retrieval_tools.m044", result=result.interviewed_count))
         return result
     
     @staticmethod
@@ -1516,10 +1516,10 @@ class ZepToolsService:
             try:
                 with open(reddit_profile_path, 'r', encoding='utf-8') as f:
                     profiles = json.load(f)
-                logger.info(t("log.zep_tools.m045", len=len(profiles)))
+                logger.info(t("log.graph_retrieval_tools.m045", len=len(profiles)))
                 return profiles
             except Exception as e:
-                logger.warning(t("log.zep_tools.m046", e=e))
+                logger.warning(t("log.graph_retrieval_tools.m046", e=e))
         
         # Otherwise fall back to the Twitter CSV profile.
         twitter_profile_path = os.path.join(sim_dir, "twitter_profiles.csv")
@@ -1536,10 +1536,10 @@ class ZepToolsService:
                             "persona": row.get("user_char", ""),
                             "profession": "未知"
                         })
-                logger.info(t("log.zep_tools.m047", len=len(profiles)))
+                logger.info(t("log.graph_retrieval_tools.m047", len=len(profiles)))
                 return profiles
             except Exception as e:
-                logger.warning(t("log.zep_tools.m048", e=e))
+                logger.warning(t("log.graph_retrieval_tools.m048", e=e))
         
         return profiles
     
@@ -1619,7 +1619,7 @@ class ZepToolsService:
             return selected_agents, valid_indices, reasoning
             
         except Exception as e:
-            logger.warning(t("log.zep_tools.m049", e=e))
+            logger.warning(t("log.graph_retrieval_tools.m049", e=e))
             # Fallback: pick the first N profiles.
             selected = profiles[:max_agents]
             indices = list(range(min(max_agents, len(profiles))))
@@ -1667,7 +1667,7 @@ class ZepToolsService:
             return response.get("questions", [f"关于{interview_requirement}，您有什么看法？"])
             
         except Exception as e:
-            logger.warning(t("log.zep_tools.m050", e=e))
+            logger.warning(t("log.graph_retrieval_tools.m050", e=e))
             return [
                 f"关于{interview_requirement}，您的观点是什么？",
                 "这件事对您或您所代表的群体有什么影响？",
@@ -1724,6 +1724,6 @@ class ZepToolsService:
             return summary
             
         except Exception as e:
-            logger.warning(t("log.zep_tools.m051", e=e))
+            logger.warning(t("log.graph_retrieval_tools.m051", e=e))
             # Fallback: simple concatenation of agent names.
             return f"共采访了{len(interviews)}位受访者，包括：" + "、".join([i.agent_name for i in interviews])

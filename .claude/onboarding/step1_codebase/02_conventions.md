@@ -6,16 +6,14 @@ Decisions made while updating `CLAUDE.md` (Step 1, PROMPT 2).
 
 ## Drivers
 The recent merge `feat/graphiti-neo4j-migration` (commit `6264828`)
-replaced Zep Cloud with **Neo4j + Graphiti** as the primary
-knowledge-graph store. The previous CLAUDE.md was out of date.
+established **Neo4j + Graphiti** as the primary knowledge-graph store.
+The previous CLAUDE.md was out of date.
 
 ## Section-by-Section Decisions
 
 ### Tech Stack
 - **Memory/Graph (UPDATED):** Primary = **Neo4j + Graphiti** (`graphiti-core>=0.3`).
-  Zep Cloud is now legacy / kept for backwards compatibility only. Code
-  files still named `zep_*` are historical artefacts; the underlying
-  store is Neo4j.
+  All graph retrieval modules call into Graphiti via `GraphitiAdapter`.
 - **Versions added:** Vue 3.5, Vite 7, axios 1.14, vue-router 4.6,
   vue-i18n 11, D3 7, camel-oasis 0.2.5, camel-ai 0.2.78.
 - **i18n:** Documented `vue-i18n` + `/locales/{en,zh,languages}.json`.
@@ -24,7 +22,6 @@ knowledge-graph store. The previous CLAUDE.md was out of date.
 Updated to reflect `app/config.py`:
 - Added: `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `EMBEDDING_MODEL`.
 - Added: optional `LLM_BOOST_*` block (omit entirely if unused).
-- Marked `ZEP_API_KEY` as deprecated/compat (empty string OK).
 
 ### Conventions (per user direction)
 - **Follow the conventions already established in this project.**
@@ -55,8 +52,8 @@ Confirmed all architectural patterns drawn from the actual code:
 ## What's Now in CLAUDE.md
 - Project overview (unchanged).
 - Commands (with Neo4j prerequisite note + lint disclaimer).
-- Tech stack (Neo4j+Graphiti primary, Zep deprecated, full versions).
-- Required env vars (Neo4j block, optional boost block, deprecated zep).
+- Tech stack (Neo4j+Graphiti, full versions).
+- Required env vars (Neo4j block, optional boost block).
 - 5-step pipeline (rephrased to mention Graphiti+Neo4j).
 - Backend / frontend structure (added i18n, locale, logger to utils).
 - Key implementation conventions (the seven must-respect rules).

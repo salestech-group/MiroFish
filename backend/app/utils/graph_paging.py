@@ -1,8 +1,8 @@
-"""Zep Graph paging helpers.
+"""Graph paging helpers.
 
-Zep's node/edge list APIs paginate with a UUID cursor. This module wraps the
-auto-paging loop (including per-page retry) so callers see the full list
-transparently.
+The Graphiti adapter's node/edge list APIs paginate with a UUID cursor.
+This module wraps the auto-paging loop (including per-page retry) so
+callers see the full list transparently.
 """
 
 from __future__ import annotations
@@ -11,11 +11,9 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from typing import Any
-
 from .logger import get_logger
 
-logger = get_logger('mirofish.zep_paging')
+logger = get_logger('mirofish.graph_paging')
 
 _DEFAULT_PAGE_SIZE = 100
 _MAX_NODES = 2000
@@ -47,12 +45,12 @@ def _fetch_page_with_retry(
                 # If a 429 rate limit is detected, prefer the retry-after header for the wait.
                 wait = delay
                 logger.warning(
-                    f"Zep {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {wait:.1f}s..."
+                    f"Graph {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {wait:.1f}s..."
                 )
                 time.sleep(wait)
                 delay *= 2
             else:
-                logger.error(f"Zep {page_description} failed after {max_retries} attempts: {str(e)}")
+                logger.error(f"Graph {page_description} failed after {max_retries} attempts: {str(e)}")
 
     assert last_exception is not None
     raise last_exception

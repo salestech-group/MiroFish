@@ -1,10 +1,10 @@
 """
 Report Agent service.
 
-Implements ReACT-style simulation report generation using LangChain + Zep.
+Implements ReACT-style simulation report generation using LangChain + Graphiti.
 
 Features:
-1. Generate a report from the simulation requirement and the Zep knowledge graph.
+1. Generate a report from the simulation requirement and the knowledge graph.
 2. Plan the table of contents first, then generate one section at a time.
 3. Each section uses a ReACT multi-round thought and reflection loop.
 4. Support a chat mode that can autonomously invoke retrieval tools.
@@ -23,12 +23,12 @@ from ..config import Config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, t
-from .zep_tools import (
-    ZepToolsService, 
-    SearchResult, 
-    InsightForgeResult, 
+from .graph_retrieval_tools import (
+    GraphToolsService,
+    SearchResult,
+    InsightForgeResult,
     PanoramaResult,
-    InterviewResult
+    InterviewResult,
 )
 
 logger = get_logger('mirofish.report_agent')
@@ -356,7 +356,7 @@ class ReportConsoleLogger:
 
         loggers_to_attach = [
             'mirofish.report_agent',
-            'mirofish.zep_tools',
+            'mirofish.graph_retrieval_tools',
         ]
 
         for logger_name in loggers_to_attach:
@@ -372,7 +372,7 @@ class ReportConsoleLogger:
         if self._file_handler:
             loggers_to_detach = [
                 'mirofish.report_agent',
-                'mirofish.zep_tools',
+                'mirofish.graph_retrieval_tools',
             ]
             
             for logger_name in loggers_to_detach:
@@ -886,12 +886,12 @@ class ReportAgent:
     MAX_TOOL_CALLS_PER_CHAT = 2
     
     def __init__(
-        self, 
+        self,
         graph_id: str,
         simulation_id: str,
         simulation_requirement: str,
         llm_client: Optional[LLMClient] = None,
-        zep_tools: Optional[ZepToolsService] = None
+        graph_tools: Optional[GraphToolsService] = None
     ):
         """
         Initialize the Report Agent.
@@ -901,14 +901,14 @@ class ReportAgent:
             simulation_id: Simulation ID.
             simulation_requirement: Description of the simulation requirement.
             llm_client: Optional LLM client.
-            zep_tools: Optional Zep tools service.
+            graph_tools: Optional graph retrieval tools service.
         """
         self.graph_id = graph_id
         self.simulation_id = simulation_id
         self.simulation_requirement = simulation_requirement
-        
+
         self.llm = llm_client or LLMClient()
-        self.zep_tools = zep_tools or ZepToolsService()
+        self.graph_tools = graph_tools or GraphToolsService()
         
         self.tools = self._define_tools()
 
@@ -973,7 +973,7 @@ class ReportAgent:
             if tool_name == "insight_forge":
                 query = parameters.get("query", "")
                 ctx = parameters.get("report_context", "") or report_context
-                result = self.zep_tools.insight_forge(
+                result = self.graph_tools.insight_forge(
                     graph_id=self.graph_id,
                     query=query,
                     simulation_requirement=self.simulation_requirement,
@@ -987,7 +987,7 @@ class ReportAgent:
                 include_expired = parameters.get("include_expired", True)
                 if isinstance(include_expired, str):
                     include_expired = include_expired.lower() in ['true', '1', 'yes']
-                result = self.zep_tools.panorama_search(
+                result = self.graph_tools.panorama_search(
                     graph_id=self.graph_id,
                     query=query,
                     include_expired=include_expired
@@ -1000,7 +1000,7 @@ class ReportAgent:
                 limit = parameters.get("limit", 10)
                 if isinstance(limit, str):
                     limit = int(limit)
-                result = self.zep_tools.quick_search(
+                result = self.graph_tools.quick_search(
                     graph_id=self.graph_id,
                     query=query,
                     limit=limit
@@ -1014,7 +1014,7 @@ class ReportAgent:
                 if isinstance(max_agents, str):
                     max_agents = int(max_agents)
                 max_agents = min(max_agents, 10)
-                result = self.zep_tools.interview_agents(
+                result = self.graph_tools.interview_agents(
                     simulation_id=self.simulation_id,
                     interview_requirement=interview_topic,
                     simulation_requirement=self.simulation_requirement,
@@ -1030,12 +1030,12 @@ class ReportAgent:
                 return self._execute_tool("quick_search", parameters, report_context)
             
             elif tool_name == "get_graph_statistics":
-                result = self.zep_tools.get_graph_statistics(self.graph_id)
+                result = self.graph_tools.get_graph_statistics(self.graph_id)
                 return json.dumps(result, ensure_ascii=False, indent=2)
             
             elif tool_name == "get_entity_summary":
                 entity_name = parameters.get("entity_name", "")
-                result = self.zep_tools.get_entity_summary(
+                result = self.graph_tools.get_entity_summary(
                     graph_id=self.graph_id,
                     entity_name=entity_name
                 )
@@ -1049,7 +1049,7 @@ class ReportAgent:
             
             elif tool_name == "get_entities_by_type":
                 entity_type = parameters.get("entity_type", "")
-                nodes = self.zep_tools.get_entities_by_type(
+                nodes = self.graph_tools.get_entities_by_type(
                     graph_id=self.graph_id,
                     entity_type=entity_type
                 )
@@ -1158,7 +1158,7 @@ class ReportAgent:
             progress_callback("planning", 0, t('progress.analyzingRequirements'))
         
         # First fetch the simulation context.
-        context = self.zep_tools.get_simulation_context(
+        context = self.graph_tools.get_simulation_context(
             graph_id=self.graph_id,
             simulation_requirement=self.simulation_requirement
         )
