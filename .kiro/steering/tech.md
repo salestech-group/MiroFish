@@ -121,11 +121,9 @@ docker compose up
 
 ## Key Technical Decisions
 
-- **Neo4j + Graphiti replaces Zep Cloud.** Several services still carry
-  the legacy `zep_*` filename prefix (`zep_tools.py`,
-  `zep_entity_reader.py`, `zep_graph_memory_updater.py`). New code must
-  not depend on Zep Cloud. The `ZEP_API_KEY` env var is kept (empty
-  string is fine) only for backwards compatibility.
+- **Neo4j + Graphiti is the knowledge-graph store.** The retrieval
+  modules (`graph_retrieval_tools.py`, `graph_entity_reader.py`,
+  `graph_memory_updater.py`) call into Graphiti via `GraphitiAdapter`.
 - **Per-project graph isolation via `group_id`.** Every Graphiti read or
   write must filter by the project's `group_id`. There is no
   cross-project graph access.

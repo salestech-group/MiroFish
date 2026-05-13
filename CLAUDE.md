@@ -52,7 +52,6 @@ docker-compose up        # Full stack via Docker
 - **Frontend**: Vue 3.5 + Vite 7, port 3000; proxies `/api` → port 5001
 - **LLM**: OpenAI SDK-compatible (default: Qwen via `dashscope`; also works with GLM, OpenAI, Gemini)
 - **Memory/Graph**: **Neo4j + Graphiti** (`graphiti-core>=0.3`) — primary store for the knowledge graph (entities/edges scoped by `group_id` per project)
-- **Memory/Graph (deprecated)**: Zep Cloud — legacy code path; new code should not depend on it. Several services still carry the `zep_*` filename prefix for historical reasons (`zep_tools.py`, `zep_entity_reader.py`, `zep_graph_memory_updater.py`).
 - **Simulation**: CAMEL-OASIS 0.2.5 + camel-ai 0.2.78 (multi-agent Twitter + Reddit simulation)
 - **Visualization**: D3.js 7
 - **i18n**: `vue-i18n` (frontend) + per-locale JSON in `/locales/` (`en.json`, `zh.json`, `languages.json`); backend logger messages translated as part of the i18n initiative
@@ -105,9 +104,6 @@ RERANKER_API_KEY         # Default: value of EMBEDDING_API_KEY
 LLM_BOOST_API_KEY
 LLM_BOOST_BASE_URL
 LLM_BOOST_MODEL_NAME
-
-# Deprecated, kept for backwards compat
-ZEP_API_KEY              # Empty string acceptable
 ```
 
 ### 5-Step Pipeline
@@ -120,9 +116,9 @@ The core workflow is a sequential async pipeline:
 
 ### Backend Structure (`backend/app/`)
 - `api/` — Flask blueprints: `graph_bp`, `simulation_bp`, `report_bp`
-- `services/` — Core logic: graph building, simulation runner, report agent, Graphiti adapter, legacy Zep tools
+- `services/` — Core logic: graph building, simulation runner, report agent, Graphiti adapter, graph retrieval tools
 - `models/` — `Project` and `Task` state objects (in-memory, JSON-serializable)
-- `utils/` — LLM client wrapper, file parser, retry logic, Zep pagination, locale helpers, logger
+- `utils/` — LLM client wrapper, file parser, retry logic, graph pagination, locale helpers, logger
 - `config.py` — All configuration (LLM, Neo4j, embedding, chunking, OASIS, ReportAgent params)
 
 Long-running operations (ontology generation, graph build, profile generation, report generation) run as background tasks tracked via `Task` objects with progress polling.

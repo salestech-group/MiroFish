@@ -1,0 +1,215 @@
+# Implementation Tasks — zep-remnants-removal
+
+## Phase 1 — Risk-Free Cleanup
+
+- [x] 1. Drop unused dependency, dead config, and dead code
+- [x] 1.1 Remove the `zep-cloud==3.13.0` dependency pin
+  - Delete the `zep-cloud` line from the backend requirements file
+  - Confirm `uv sync` (or equivalent dependency install) succeeds with the line removed
+  - Observable completion: backend dependency manifest no longer mentions `zep-cloud`; install command exits 0
+  - _Requirements: 1.1_
+- [x] 1.2 Remove the `ZEP_API_KEY` config slot and `.env.example` entry
+  - Delete the `ZEP_API_KEY` declaration and any surrounding deprecation comment in the backend config module
+  - Delete the `ZEP_API_KEY=` line from `.env.example` (if present — ask the developer if Claude tooling cannot read `.env*`)
+  - Observable completion: a repository-wide grep for `ZEP_API_KEY` returns zero hits outside historical commit references
+  - _Requirements: 1.2_
+- [x] 1.3 Delete the unreachable `generate_python_code()` method in the ontology generator
+  - Remove the method body and any inline comment that references it
+  - Verify the surrounding class still imports and instantiates cleanly
+  - Observable completion: `rg 'generate_python_code'` over the Python source returns zero hits
+  - _Requirements: 1.3_
+- [x] 1.4 Rewrite the Graphiti adapter module docstring
+  - Remove the "drop-in replacement for the Zep Cloud client" framing and the references to legacy `zep_*` module names
+  - Reframe the docstring as a present-state description of the Graphiti-backed namespace
+  - Observable completion: the adapter module's docstring no longer contains the substring "zep" (case-insensitive)
+  - _Requirements: 1.4_
+- [x] 1.5 Verify or remove the `api.zepApiKeyMissing` locale key
+  - Grep frontend and backend code for any caller of `api.zepApiKeyMissing`
+  - If zero callers, delete the key from both `en` and `zh` locale stores
+  - If a caller is found, defer renaming to task 4.1 and document in the PR description
+  - Observable completion: after deletion, parity guard reports no orphaned keys for `api.zepApiKeyMissing`
+  - _Requirements: 1.5_
+- [x] 1.6 Verify backend boots after Phase 1
+  - Start the Flask backend and confirm no import errors at boot
+  - Confirm `_recover_stuck_projects` runs without raising
+  - Observable completion: backend process logs the normal startup message; no traceback in stderr
+  - _Requirements: 1.6_
+
+## Phase 2 — File, Class, and Locale Renames
+
+- [x] 2. Rename pagination utility (must precede other module renames because they import it)
+- [x] 2.1 Rename the paging utility module from `zep_paging` to `graph_paging`
+  - Move the file from the legacy path to its new location preserving git history
+  - Confirm the public function names (`fetch_all_nodes`, `fetch_all_edges`) are unchanged
+  - Update every importer (currently three call sites in the services layer) to use the new path
+  - Observable completion: `python -c "from app.utils.graph_paging import fetch_all_nodes, fetch_all_edges"` succeeds from the backend root; legacy path no longer exists
+  - _Requirements: 2.4, 2.6, 2.7_
+  - _Boundary: GraphPaging_
+
+- [x] 3. Rename the four `Zep*` service modules and their classes
+- [x] 3.1 (P) Rename retrieval tools module to `graph_retrieval_tools` and class to `GraphToolsService`
+  - Move the file preserving git history
+  - Rename the service class throughout the module; preserve every dataclass and helper
+  - Update the module docstring and any internal self-references
+  - Update the `paging` import to the new `graph_paging` path
+  - Update three external importers (report agent, two API call sites in the report API) and every class instantiation
+  - Update the package re-export list to expose the new class name
+  - Observable completion: `python -c "from app.services.graph_retrieval_tools import GraphToolsService"` succeeds; legacy file is gone; all three importers compile
+  - _Depends: 2.1_
+  - _Requirements: 2.1, 2.5, 2.6, 2.7_
+  - _Boundary: GraphToolsService_
+- [x] 3.2 (P) Rename entity reader module to `graph_entity_reader` and class to `GraphEntityReader`
+  - Move the file preserving git history
+  - Rename the service class and update internal references
+  - Update the `paging` import to the new `graph_paging` path
+  - Update five external importers (simulation manager, simulation config generator, oasis profile generator, simulation API, package `__init__`) and every class instantiation
+  - Update the package re-export list
+  - Observable completion: `python -c "from app.services.graph_entity_reader import GraphEntityReader"` succeeds; legacy file is gone; all five importers compile
+  - _Depends: 2.1_
+  - _Requirements: 2.2, 2.5, 2.6, 2.7_
+  - _Boundary: GraphEntityReader_
+- [x] 3.3 (P) Rename memory updater module to `graph_memory_updater` with classes `GraphMemoryUpdater` and `GraphMemoryManager`
+  - Move the file preserving git history
+  - Rename both classes throughout the module; preserve the `AgentActivity` dataclass and the manager's static API
+  - Update the simulation runner import and all five class call sites
+  - Update the package re-export list
+  - Observable completion: `python -c "from app.services.graph_memory_updater import GraphMemoryManager"` succeeds; legacy file is gone; simulation runner compiles
+  - _Depends: 2.1_
+  - _Requirements: 2.3, 2.5, 2.6, 2.7_
+  - _Boundary: GraphMemoryUpdater_
+
+- [x] 4. Rename locale keys and update every caller
+- [x] 4.1 (P) Rename the retrieval-tools log namespace and message values
+  - Rename the `log.zep_tools.*` namespace to `log.graph_retrieval_tools.*` in both locale stores, preserving every message identifier
+  - Rewrite every renamed message value so that "Zep" / "ZepToolsService" literals become "Graphiti" / "GraphToolsService"
+  - Update every caller inside the renamed retrieval-tools module
+  - Update the parity-guard expectation list if necessary
+  - Observable completion: `rg "log\.zep_tools\." .` returns zero hits; running the parity guard reports no orphaned or missing keys
+  - _Depends: 3.1_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - _Boundary: Locale stores, GraphToolsService_
+- [x] 4.2 (P) Rename the entity-reader log namespace and message values
+  - Rename `log.zep_entity_reader.*` to `log.graph_entity_reader.*` in both locale stores
+  - Rewrite "Zep" mentions inside the renamed message values
+  - Update every caller inside the renamed entity-reader module
+  - Observable completion: `rg "log\.zep_entity_reader\." .` returns zero hits; entity-reader module emits log messages under the new namespace
+  - _Depends: 3.2_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - _Boundary: Locale stores, GraphEntityReader_
+- [x] 4.3 (P) Rename the memory-updater log namespace, top-level activity namespace, and message values
+  - Rename `log.zep_graph_memory_updater.*` to `log.graph_memory_updater.*` in both locale stores
+  - Rename the top-level `zep_graph_memory_updater.*` (action / platform) namespace to `graph_memory_updater.*` and preserve every action and platform key
+  - Rewrite "ZepGraphMemoryUpdater" / "Zep" literals inside the renamed message values
+  - Update every caller inside the renamed memory-updater module to use the new key prefixes
+  - Observable completion: `rg "zep_graph_memory_updater" .` returns zero hits; memory-updater module renders agent activities and platform labels under the new namespace
+  - _Depends: 3.3_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - _Boundary: Locale stores, GraphMemoryUpdater_
+- [x] 4.4 Rename the `progress.*` and `log.zepEntitiesFound` keys and update their callers
+  - Rename `progress.creatingZepGraph` → `progress.creatingGraph`, `progress.waitingZepProcess` → `progress.waitingGraphProcess`, `progress.zepProcessing` → `progress.graphProcessing`, `progress.connectingZepGraph` → `progress.connectingGraph`, `progress.zepSearchQuery` → `progress.graphSearchQuery` in both locale stores
+  - Rename `log.zepEntitiesFound` → `log.graphEntitiesFound` in both locale stores
+  - Rewrite "Zep" mentions in the renamed message values
+  - Update every caller across the backend (graph builder, oasis profile generator) and the frontend (`Step2EnvSetup` component)
+  - Observable completion: `rg "progress\.zep|log\.zepEntitiesFound" .` returns zero hits; the affected pipeline steps emit progress updates under the new keys
+  - _Depends: 3.1, 3.2, 3.3_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - _Boundary: Locale stores, GraphBuilderService, OasisProfileGenerator, Step2EnvSetup_
+- [x] 4.5 Resolve the `console.zep*` keys (rename or delete based on caller search)
+  - Grep frontend (`vue`, `ts`, `js`) and backend (`py`) for any caller of `console.zepToolsInitialized`, `console.zepRetryAttempt`, `console.zepAllRetriesFailed`, or `console.zepSearchApiFallback`
+  - If zero callers, delete all four keys from both locale stores
+  - If callers exist, rename to `console.graphToolsInitialized` / `console.graphRetryAttempt` / `console.graphAllRetriesFailed` / `console.graphSearchApiFallback` and update the callers
+  - Observable completion: `rg "console\.zep" .` returns zero hits; parity guard reports no missing key references
+  - _Requirements: 3.1, 3.2, 3.3, 3.5_
+  - _Boundary: Locale stores_
+- [x] 4.6 Rewrite "Zep" mentions in the description-only locale values
+  - Rewrite the value of `step.graphBuildDescription` to drop the "Zep API" reference while preserving meaning
+  - Rewrite the value of `step.graphRagDesc` to drop the "Zep" reference while preserving meaning
+  - Apply the same edits to the Chinese locale entries
+  - Observable completion: `rg -ni 'zep' locales/` returns zero hits
+  - _Requirements: 3.4, 3.5_
+  - _Boundary: Locale stores_
+
+- [x] 5. Internal symbol rename and tooling update
+- [x] 5.1 Rename internal helpers in the OASIS profile generator
+  - Rename the private method `_search_zep_for_entity` to `_search_graph_for_entity`
+  - Rename every local-variable occurrence of `zep_results` to `graph_results`
+  - Update the single caller inside the same module
+  - Observable completion: `rg "zep_results|_search_zep_for_entity" backend/` returns zero hits; the module compiles
+  - _Requirements: 2.8_
+  - _Boundary: OasisProfileGenerator_
+- [x] 5.2 Update the i18n log-coverage script's hard-coded module paths
+  - Replace the three legacy `zep_*.py` entries in the SOURCE_FILES list with their renamed counterparts
+  - Run the script and confirm it exits 0 against the renamed files
+  - Observable completion: the script's SOURCE_FILES list contains no `zep_` substring; the script exits 0
+  - _Depends: 3.1, 3.2, 3.3_
+  - _Requirements: 4.1, 7.3_
+  - _Boundary: Tooling_
+- [x] 5.3 Update the inline comment references in `Step4Report.vue`
+  - Update each `zep_tools.py:LINE` comment in the report panel to reference `graph_retrieval_tools.py` and drop the stale precise line numbers (keep the section-header context)
+  - Observable completion: the component contains zero comment references to `zep_tools.py`
+  - _Depends: 3.1_
+  - _Requirements: 4.2_
+  - _Boundary: Step4Report_
+- [x] 5.4 Audit self-references inside the renamed Python modules
+  - For each renamed module, grep its own body for the legacy filename or class name (in comments, docstrings, error messages, or string literals)
+  - Update every hit to use the new name
+  - Observable completion: `rg -ni 'zep' backend/app/services/graph_retrieval_tools.py backend/app/services/graph_entity_reader.py backend/app/services/graph_memory_updater.py backend/app/utils/graph_paging.py` returns zero hits
+  - _Depends: 3.1, 3.2, 3.3, 2.1_
+  - _Requirements: 4.3_
+  - _Boundary: GraphToolsService, GraphEntityReader, GraphMemoryUpdater, GraphPaging_
+
+## Phase 3 — Documentation, Steering, and Final Verification
+
+- [x] 6. Refresh narrative documentation
+- [x] 6.1 (P) Remove Zep references from `CLAUDE.md`
+  - Drop the Zep deprecation paragraph and the `zep_*` filename-prefix bullet
+  - Drop the `ZEP_API_KEY` line from the environment-variable section
+  - Drop the "legacy Zep tools" services bullet and the "Zep pagination" utility bullet
+  - Observable completion: `rg -ni 'zep' CLAUDE.md` returns zero hits
+  - _Requirements: 5.1_
+  - _Boundary: Documentation_
+- [x] 6.2 (P) Rewrite the Zep-migration notice in `README.md` and `README-EN.md`
+  - Replace the "migrated from Zep Cloud" paragraph with a factual present-state description of the Neo4j + Graphiti stack, or remove it entirely if redundant
+  - Do not edit `README-ZH.md` (Chinese localisation is out of scope)
+  - Observable completion: `rg -ni 'zep' README.md README-EN.md` returns zero hits while `README-ZH.md` is unchanged
+  - _Requirements: 5.2, 5.3_
+  - _Boundary: Documentation_
+- [x] 6.3 (P) Update steering documentation
+  - In `structure.md`, remove the `zep_*` filename references and the "legacy filename" notes
+  - In `tech.md`, remove the "Neo4j + Graphiti replaces Zep Cloud" paragraph and the `ZEP_API_KEY` env-var note
+  - In `database.md`, update the lines that reference the adapter's "Zep-shaped namespace" and the `zep_paging.py` utility
+  - In `api-standards.md`, update the `zep_paging.py` reference to `graph_paging.py`
+  - Observable completion: `rg -ni 'zep' .kiro/steering/` returns zero hits
+  - _Requirements: 5.4_
+  - _Boundary: Steering documentation_
+- [x] 6.4 (P) Update onboarding documentation
+  - In each affected onboarding doc under `.claude/onboarding/step1_codebase/`, replace Zep references with the present-state Graphiti narrative (or rewrite the paragraph if a strict substitution would be incoherent)
+  - Observable completion: `rg -ni 'zep' .claude/onboarding/` returns zero hits
+  - _Requirements: 5.5_
+  - _Boundary: Onboarding documentation_
+
+- [x] 7. Functional regression and acceptance verification
+- [x] 7.1 Verify backend startup and pipeline boot path after the rename
+  - Start the Flask backend with the renamed modules in place
+  - Confirm `_recover_stuck_projects` loads the renamed memory-updater module without error
+  - Confirm `GraphToolsService` exposes `SearchResult`, `InsightForge`, `Panorama`, and `Interview` capabilities to the report agent
+  - Confirm `group_id` scoping is preserved end-to-end (no cross-project access)
+  - Observable completion: backend boots, no `ImportError`/`ModuleNotFoundError`/`AttributeError`; spot-check API endpoint returns the expected shape
+  - _Depends: 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+  - _Boundary: Backend runtime_
+- [x] 7.2 Run the project's existing i18n coverage script
+  - Execute the i18n log-coverage script against the renamed files
+  - Confirm the parity guard between English and Chinese locales reports no orphaned or missing keys
+  - Observable completion: script exits 0; parity guard exits 0
+  - _Depends: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 5.2_
+  - _Requirements: 3.5, 7.3_
+  - _Boundary: Tooling, Locale stores_
+- [x] 7.3 Run the repository-wide acceptance grep
+  - Execute the canonical command from the spec: a recursive case-insensitive grep for `zep` over the repo, excluding `README-ZH.md`, `.git/`, `node_modules/`, `.venv/`, and any project changelog
+  - Execute `rg 'import zep|from zep' --type py` and confirm zero hits
+  - Investigate every remaining hit; resolve or document why it must remain (historical / commit-message context only)
+  - Observable completion: both greps return zero hits outside the documented exclusions; any documented exception is noted in the PR description
+  - _Depends: 6.1, 6.2, 6.3, 6.4, 7.1, 7.2_
+  - _Requirements: 7.1, 7.2, 7.4_
+  - _Boundary: Repository-wide acceptance_

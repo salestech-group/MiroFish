@@ -288,7 +288,7 @@ Based on the content above, design entity types and relationship types suitable 
         # references can be fixed up consistently below.
         entity_name_map = {}
         for entity in result["entity_types"]:
-            # Force entity names to PascalCase (required by the Zep API).
+            # Force entity names to PascalCase (required by Graphiti).
             if "name" in entity:
                 original_name = entity["name"]
                 entity["name"] = _to_pascal_case(original_name)
@@ -305,7 +305,7 @@ Based on the content above, design entity types and relationship types suitable 
 
         # Validate edge types.
         for edge in result["edge_types"]:
-            # Force edge names to SCREAMING_SNAKE_CASE (required by the Zep API).
+            # Force edge names to SCREAMING_SNAKE_CASE (required by Graphiti).
             if "name" in edge:
                 original_name = edge["name"]
                 edge["name"] = original_name.upper()
@@ -325,7 +325,7 @@ Based on the content above, design entity types and relationship types suitable 
             if len(edge.get("description", "")) > 100:
                 edge["description"] = edge["description"][:97] + "..."
         
-        # Zep API caps: at most 10 custom entity types and 10 custom edge types.
+        # Graphiti caps: at most 10 custom entity types and 10 custom edge types.
         MAX_ENTITY_TYPES = 10
         MAX_EDGE_TYPES = 10
 
@@ -392,112 +392,6 @@ Based on the content above, design entity types and relationship types suitable 
         
         if len(result["edge_types"]) > MAX_EDGE_TYPES:
             result["edge_types"] = result["edge_types"][:MAX_EDGE_TYPES]
-        
+
         return result
-    
-    def generate_python_code(self, ontology: Dict[str, Any]) -> str:
-        """Render the ontology definition as Python source code.
-
-        Args:
-            ontology: Ontology definition dict.
-
-        Returns:
-            Python source code as a single string.
-        """
-        code_lines = [
-            '"""',
-            '自定义实体类型定义',
-            '由MiroFish自动生成，用于社会舆论模拟',
-            '"""',
-            '',
-            'from pydantic import Field',
-            'from zep_cloud.external_clients.ontology import EntityModel, EntityText, EdgeModel',
-            '',
-            '',
-            '# ============== 实体类型定义 ==============',
-            '',
-        ]
-        
-        # Emit each entity type as a Python class.
-        for entity in ontology.get("entity_types", []):
-            name = entity["name"]
-            desc = entity.get("description", f"A {name} entity.")
-            
-            code_lines.append(f'class {name}(EntityModel):')
-            code_lines.append(f'    """{desc}"""')
-            
-            attrs = entity.get("attributes", [])
-            if attrs:
-                for attr in attrs:
-                    attr_name = attr["name"]
-                    attr_desc = attr.get("description", attr_name)
-                    code_lines.append(f'    {attr_name}: EntityText = Field(')
-                    code_lines.append(f'        description="{attr_desc}",')
-                    code_lines.append(f'        default=None')
-                    code_lines.append(f'    )')
-            else:
-                code_lines.append('    pass')
-            
-            code_lines.append('')
-            code_lines.append('')
-        
-        code_lines.append('# ============== 关系类型定义 ==============')
-        code_lines.append('')
-        
-        # Emit each edge type as a Python class.
-        for edge in ontology.get("edge_types", []):
-            name = edge["name"]
-            # Convert SCREAMING_SNAKE_CASE -> PascalCase for the class name.
-            class_name = ''.join(word.capitalize() for word in name.split('_'))
-            desc = edge.get("description", f"A {name} relationship.")
-            
-            code_lines.append(f'class {class_name}(EdgeModel):')
-            code_lines.append(f'    """{desc}"""')
-            
-            attrs = edge.get("attributes", [])
-            if attrs:
-                for attr in attrs:
-                    attr_name = attr["name"]
-                    attr_desc = attr.get("description", attr_name)
-                    code_lines.append(f'    {attr_name}: EntityText = Field(')
-                    code_lines.append(f'        description="{attr_desc}",')
-                    code_lines.append(f'        default=None')
-                    code_lines.append(f'    )')
-            else:
-                code_lines.append('    pass')
-            
-            code_lines.append('')
-            code_lines.append('')
-        
-        # Emit the type registries.
-        code_lines.append('# ============== 类型配置 ==============')
-        code_lines.append('')
-        code_lines.append('ENTITY_TYPES = {')
-        for entity in ontology.get("entity_types", []):
-            name = entity["name"]
-            code_lines.append(f'    "{name}": {name},')
-        code_lines.append('}')
-        code_lines.append('')
-        code_lines.append('EDGE_TYPES = {')
-        for edge in ontology.get("edge_types", []):
-            name = edge["name"]
-            class_name = ''.join(word.capitalize() for word in name.split('_'))
-            code_lines.append(f'    "{name}": {class_name},')
-        code_lines.append('}')
-        code_lines.append('')
-        
-        # Emit the edge source_targets map.
-        code_lines.append('EDGE_SOURCE_TARGETS = {')
-        for edge in ontology.get("edge_types", []):
-            name = edge["name"]
-            source_targets = edge.get("source_targets", [])
-            if source_targets:
-                st_list = ', '.join([
-                    f'{{"source": "{st.get("source", "Entity")}", "target": "{st.get("target", "Entity")}"}}'
-                    for st in source_targets
-                ])
-                code_lines.append(f'    "{name}": [{st_list}],')
-        code_lines.append('}')
-        
-        return '\n'.join(code_lines)
 

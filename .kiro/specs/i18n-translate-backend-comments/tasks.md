@@ -88,7 +88,7 @@
   - _Depends: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
   - _Requirements: 1.3, 2.5, 5.1, 5.2, 5.3, 5.4, 6.4_
 
-- [ ] 3.2 Open PR and reference ticket #7
+- [x] 3.2 Open PR and reference ticket #7 — PR #36 (https://github.com/salestech-group/MiroFish/pull/36) opened against main with `Closes #7`.
   - Use `/done` to commit any remaining changes per Conventional Commits with type `docs` and scope `i18n` (e.g. `docs(i18n): translate chinese docstrings/comments in backend/<area>`), push the branch, and open a PR.
   - The PR body must include `Closes #7` and reference the spec at `.kiro/specs/i18n-translate-backend-comments/`.
   - Verify the PR contains no unrelated changes (no dependency bumps, no config changes, no refactors).

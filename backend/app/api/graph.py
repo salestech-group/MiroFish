@@ -394,7 +394,7 @@ def build_graph():
 
                 task_manager.update_task(
                     task_id,
-                    message="创建Zep图谱...",
+                    message=t("progress.creatingGraph"),
                     progress=10
                 )
                 graph_id = builder.create_graph(name=graph_name)
@@ -444,10 +444,10 @@ def build_graph():
                     skip_chunks=skip_chunks,
                 )
                 
-                # Wait for Zep to finish processing (poll each episode's processed flag).
+                # Wait for Graphiti to finish processing (poll each episode's processed flag).
                 task_manager.update_task(
                     task_id,
-                    message="等待Zep处理数据...",
+                    message=t("progress.waitingGraphProcess"),
                     progress=55
                 )
                 
@@ -617,7 +617,7 @@ def _refresh_graph_cache(graph_id: str):
 def get_graph_data(graph_id: str):
     """Return graph data (nodes and edges).
 
-    - Fresh cache: serve from cache without hitting Zep.
+    - Fresh cache: serve from cache without hitting Graphiti.
     - Stale cache: return the old cache immediately and refresh in the background.
     - No cache: kick off a background fetch and return 202 so the frontend retries.
     """
@@ -654,7 +654,7 @@ def get_graph_data(graph_id: str):
 
 @graph_bp.route('/delete/<graph_id>', methods=['DELETE'])
 def delete_graph(graph_id: str):
-    """Delete a Zep graph."""
+    """Delete a graph."""
     try:
         if not Config.NEO4J_PASSWORD:
             return jsonify({

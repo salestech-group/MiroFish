@@ -39,7 +39,7 @@ class Config:
     # to Graphiti's hard-coded `gpt-4.1-nano`, which would 404.
     LLM_SMALL_MODEL_NAME = os.environ.get('LLM_SMALL_MODEL_NAME') or os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
 
-    # Neo4j + Graphiti settings (replacement for Zep Cloud).
+    # Neo4j + Graphiti settings (knowledge-graph store).
     NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
     NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
     NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'mirofish123')
@@ -74,9 +74,6 @@ class Config:
         'RERANKER_API_KEY',
         os.environ.get('EMBEDDING_API_KEY', 'ollama'),
     )
-
-    # Zep settings (kept for backwards compatibility; deprecated).
-    ZEP_API_KEY = os.environ.get('ZEP_API_KEY', '')
 
     # File upload settings.
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB

@@ -1,7 +1,8 @@
 """
-Zep graph memory update service.
+Graph memory update service.
 
-Streams agent activity from running simulations into the Zep knowledge graph.
+Streams agent activity from running simulations into the Graphiti-backed
+Neo4j knowledge graph.
 """
 
 import os
@@ -19,7 +20,7 @@ from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale, t
 
-logger = get_logger('mirofish.zep_graph_memory_updater')
+logger = get_logger('mirofish.graph_memory_updater')
 
 
 @dataclass
@@ -34,11 +35,11 @@ class AgentActivity:
     timestamp: str
     
     def to_episode_text(self) -> str:
-        """Render the activity as a natural-language episode for Zep.
+        """Render the activity as a natural-language episode for the graph.
 
-        The text uses plain narrative phrasing so Zep can extract entities and
-        relationships from it. No simulation-specific prefix is prepended, so
-        the graph update is not biased by framing words.
+        The text uses plain narrative phrasing so Graphiti can extract entities
+        and relationships from it. No simulation-specific prefix is prepended,
+        so the graph update is not biased by framing words.
         """
         action_descriptions = {
             "CREATE_POST": self._describe_create_post,
@@ -64,8 +65,8 @@ class AgentActivity:
     def _describe_create_post(self) -> str:
         content = self.action_args.get("content", "")
         if content:
-            return t("zep_graph_memory_updater.action.create_post_with_content", content=content)
-        return t("zep_graph_memory_updater.action.create_post_empty")
+            return t("graph_memory_updater.action.create_post_with_content", content=content)
+        return t("graph_memory_updater.action.create_post_empty")
 
     def _describe_like_post(self) -> str:
         """Like a post — includes the post text and author when available."""
@@ -73,12 +74,12 @@ class AgentActivity:
         post_author = self.action_args.get("post_author_name", "")
 
         if post_content and post_author:
-            return t("zep_graph_memory_updater.action.like_post_full", author=post_author, content=post_content)
+            return t("graph_memory_updater.action.like_post_full", author=post_author, content=post_content)
         elif post_content:
-            return t("zep_graph_memory_updater.action.like_post_content", content=post_content)
+            return t("graph_memory_updater.action.like_post_content", content=post_content)
         elif post_author:
-            return t("zep_graph_memory_updater.action.like_post_author", author=post_author)
-        return t("zep_graph_memory_updater.action.like_post_empty")
+            return t("graph_memory_updater.action.like_post_author", author=post_author)
+        return t("graph_memory_updater.action.like_post_empty")
     
     def _describe_dislike_post(self) -> str:
         """Dislike a post — includes the post text and author when available."""
@@ -86,12 +87,12 @@ class AgentActivity:
         post_author = self.action_args.get("post_author_name", "")
 
         if post_content and post_author:
-            return t("zep_graph_memory_updater.action.dislike_post_full", author=post_author, content=post_content)
+            return t("graph_memory_updater.action.dislike_post_full", author=post_author, content=post_content)
         elif post_content:
-            return t("zep_graph_memory_updater.action.dislike_post_content", content=post_content)
+            return t("graph_memory_updater.action.dislike_post_content", content=post_content)
         elif post_author:
-            return t("zep_graph_memory_updater.action.dislike_post_author", author=post_author)
-        return t("zep_graph_memory_updater.action.dislike_post_empty")
+            return t("graph_memory_updater.action.dislike_post_author", author=post_author)
+        return t("graph_memory_updater.action.dislike_post_empty")
 
     def _describe_repost(self) -> str:
         """Repost — includes the original post text and author when available."""
@@ -99,12 +100,12 @@ class AgentActivity:
         original_author = self.action_args.get("original_author_name", "")
 
         if original_content and original_author:
-            return t("zep_graph_memory_updater.action.repost_full", author=original_author, content=original_content)
+            return t("graph_memory_updater.action.repost_full", author=original_author, content=original_content)
         elif original_content:
-            return t("zep_graph_memory_updater.action.repost_content", content=original_content)
+            return t("graph_memory_updater.action.repost_content", content=original_content)
         elif original_author:
-            return t("zep_graph_memory_updater.action.repost_author", author=original_author)
-        return t("zep_graph_memory_updater.action.repost_empty")
+            return t("graph_memory_updater.action.repost_author", author=original_author)
+        return t("graph_memory_updater.action.repost_empty")
     
     def _describe_quote_post(self) -> str:
         """Quote-post — includes the original post, author, and the quote comment."""
@@ -113,16 +114,16 @@ class AgentActivity:
         quote_content = self.action_args.get("quote_content", "") or self.action_args.get("content", "")
 
         if original_content and original_author:
-            base = t("zep_graph_memory_updater.action.quote_post_full", author=original_author, content=original_content)
+            base = t("graph_memory_updater.action.quote_post_full", author=original_author, content=original_content)
         elif original_content:
-            base = t("zep_graph_memory_updater.action.quote_post_content", content=original_content)
+            base = t("graph_memory_updater.action.quote_post_content", content=original_content)
         elif original_author:
-            base = t("zep_graph_memory_updater.action.quote_post_author", author=original_author)
+            base = t("graph_memory_updater.action.quote_post_author", author=original_author)
         else:
-            base = t("zep_graph_memory_updater.action.quote_post_empty")
+            base = t("graph_memory_updater.action.quote_post_empty")
 
         if quote_content:
-            base += t("zep_graph_memory_updater.action.quote_post_comment_suffix", quote=quote_content)
+            base += t("graph_memory_updater.action.quote_post_comment_suffix", quote=quote_content)
         return base
 
     def _describe_follow(self) -> str:
@@ -130,8 +131,8 @@ class AgentActivity:
         target_user_name = self.action_args.get("target_user_name", "")
 
         if target_user_name:
-            return t("zep_graph_memory_updater.action.follow_user", target=target_user_name)
-        return t("zep_graph_memory_updater.action.follow_empty")
+            return t("graph_memory_updater.action.follow_user", target=target_user_name)
+        return t("graph_memory_updater.action.follow_empty")
     
     def _describe_create_comment(self) -> str:
         """Create a comment — includes the comment text and the parent post."""
@@ -141,16 +142,16 @@ class AgentActivity:
 
         if content:
             if post_content and post_author:
-                return t("zep_graph_memory_updater.action.create_comment_full",
+                return t("graph_memory_updater.action.create_comment_full",
                          author=post_author, post_content=post_content, content=content)
             elif post_content:
-                return t("zep_graph_memory_updater.action.create_comment_post_only",
+                return t("graph_memory_updater.action.create_comment_post_only",
                          post_content=post_content, content=content)
             elif post_author:
-                return t("zep_graph_memory_updater.action.create_comment_author_only",
+                return t("graph_memory_updater.action.create_comment_author_only",
                          author=post_author, content=content)
-            return t("zep_graph_memory_updater.action.create_comment_content_only", content=content)
-        return t("zep_graph_memory_updater.action.create_comment_empty")
+            return t("graph_memory_updater.action.create_comment_content_only", content=content)
+        return t("graph_memory_updater.action.create_comment_empty")
 
     def _describe_like_comment(self) -> str:
         """Like a comment — includes the comment text and author when available."""
@@ -158,12 +159,12 @@ class AgentActivity:
         comment_author = self.action_args.get("comment_author_name", "")
 
         if comment_content and comment_author:
-            return t("zep_graph_memory_updater.action.like_comment_full", author=comment_author, content=comment_content)
+            return t("graph_memory_updater.action.like_comment_full", author=comment_author, content=comment_content)
         elif comment_content:
-            return t("zep_graph_memory_updater.action.like_comment_content", content=comment_content)
+            return t("graph_memory_updater.action.like_comment_content", content=comment_content)
         elif comment_author:
-            return t("zep_graph_memory_updater.action.like_comment_author", author=comment_author)
-        return t("zep_graph_memory_updater.action.like_comment_empty")
+            return t("graph_memory_updater.action.like_comment_author", author=comment_author)
+        return t("graph_memory_updater.action.like_comment_empty")
 
     def _describe_dislike_comment(self) -> str:
         """Dislike a comment — includes the comment text and author when available."""
@@ -171,75 +172,75 @@ class AgentActivity:
         comment_author = self.action_args.get("comment_author_name", "")
 
         if comment_content and comment_author:
-            return t("zep_graph_memory_updater.action.dislike_comment_full", author=comment_author, content=comment_content)
+            return t("graph_memory_updater.action.dislike_comment_full", author=comment_author, content=comment_content)
         elif comment_content:
-            return t("zep_graph_memory_updater.action.dislike_comment_content", content=comment_content)
+            return t("graph_memory_updater.action.dislike_comment_content", content=comment_content)
         elif comment_author:
-            return t("zep_graph_memory_updater.action.dislike_comment_author", author=comment_author)
-        return t("zep_graph_memory_updater.action.dislike_comment_empty")
+            return t("graph_memory_updater.action.dislike_comment_author", author=comment_author)
+        return t("graph_memory_updater.action.dislike_comment_empty")
 
     def _describe_search(self) -> str:
         """Search posts — includes the search query."""
         query = self.action_args.get("query", "") or self.action_args.get("keyword", "")
         if query:
-            return t("zep_graph_memory_updater.action.search_query", query=query)
-        return t("zep_graph_memory_updater.action.search_empty")
+            return t("graph_memory_updater.action.search_query", query=query)
+        return t("graph_memory_updater.action.search_empty")
 
     def _describe_search_user(self) -> str:
         """Search users — includes the search query."""
         query = self.action_args.get("query", "") or self.action_args.get("username", "")
         if query:
-            return t("zep_graph_memory_updater.action.search_user_query", query=query)
-        return t("zep_graph_memory_updater.action.search_user_empty")
+            return t("graph_memory_updater.action.search_user_query", query=query)
+        return t("graph_memory_updater.action.search_user_empty")
 
     def _describe_mute(self) -> str:
         """Mute a user — includes the muted user's name."""
         target_user_name = self.action_args.get("target_user_name", "")
 
         if target_user_name:
-            return t("zep_graph_memory_updater.action.mute_user", target=target_user_name)
-        return t("zep_graph_memory_updater.action.mute_empty")
+            return t("graph_memory_updater.action.mute_user", target=target_user_name)
+        return t("graph_memory_updater.action.mute_empty")
 
     def _describe_generic(self) -> str:
         # Fallback narration for action types not handled explicitly above.
-        return t("zep_graph_memory_updater.action.generic", action_type=self.action_type)
+        return t("graph_memory_updater.action.generic", action_type=self.action_type)
 
 
-class ZepGraphMemoryUpdater:
-    """Zep graph memory updater.
+class GraphMemoryUpdater:
+    """Graph memory updater.
 
     Watches a simulation's actions log file and streams new agent activity
-    into the Zep knowledge graph in near real time. Activities are grouped
-    by platform; each platform sends a batch once it has accumulated
+    into the knowledge graph in near real time. Activities are grouped by
+    platform; each platform sends a batch once it has accumulated
     ``BATCH_SIZE`` items.
 
-    Every meaningful action is forwarded to Zep, with full context preserved
-    in ``action_args``:
+    Every meaningful action is forwarded to the graph, with full context
+    preserved in ``action_args``:
 
     - Original text of liked / disliked posts
     - Original text of reposted / quoted posts
     - Names of followed / muted users
     - Original text of liked / disliked comments
     """
-    
+
     # Number of activities to accumulate per platform before sending a batch.
     BATCH_SIZE = 5
 
     # Platform display names are resolved through the locale catalogue
-    # at `zep_graph_memory_updater.platform.<name>`. See `display_name`.
+    # at `graph_memory_updater.platform.<name>`. See `display_name`.
 
-    # Pause between sends (seconds) to avoid hammering the Zep API.
+    # Pause between sends (seconds) to avoid hammering the Graphiti API.
     SEND_INTERVAL = 0.5
 
     MAX_RETRIES = 3
     RETRY_DELAY = 2  # seconds
-    
+
     def __init__(self, graph_id: str, api_key: Optional[str] = None):
         """Initialize the updater.
 
         Args:
-            graph_id: Zep graph ID.
-            api_key: Optional Zep API key; defaults to the value from config.
+            graph_id: Knowledge graph ID.
+            api_key: Optional API key; defaults to the value from config.
         """
         self.graph_id = graph_id
         self.client = GraphitiAdapter()
@@ -258,12 +259,12 @@ class ZepGraphMemoryUpdater:
 
         # Counters
         self._total_activities = 0  # activities accepted into the queue
-        self._total_sent = 0        # batches successfully sent to Zep
-        self._total_items_sent = 0  # individual activities successfully sent to Zep
+        self._total_sent = 0        # batches successfully sent to the graph
+        self._total_items_sent = 0  # individual activities successfully sent
         self._failed_count = 0      # batches that failed to send
         self._skipped_count = 0     # activities filtered out (e.g. DO_NOTHING)
-        
-        logger.info(t("log.zep_graph_memory_updater.m001", graph_id=graph_id, self=self.BATCH_SIZE))
+
+        logger.info(t("log.graph_memory_updater.m001", graph_id=graph_id, self=self.BATCH_SIZE))
     
     def _get_platform_display_name(self, platform: str) -> str:
         """Return the human-friendly display name for a platform.
@@ -272,7 +273,7 @@ class ZepGraphMemoryUpdater:
         name has no catalogue entry, `t()` returns the lookup key; in that
         case we fall back to the raw platform string for stability.
         """
-        key = f"zep_graph_memory_updater.platform.{platform.lower()}"
+        key = f"graph_memory_updater.platform.{platform.lower()}"
         value = t(key)
         return platform if value == key else value
     
@@ -289,10 +290,10 @@ class ZepGraphMemoryUpdater:
             target=self._worker_loop,
             args=(current_locale,),
             daemon=True,
-            name=f"ZepMemoryUpdater-{self.graph_id[:8]}"
+            name=f"GraphMemoryUpdater-{self.graph_id[:8]}"
         )
         self._worker_thread.start()
-        logger.info(t("log.zep_graph_memory_updater.m002", self=self.graph_id))
+        logger.info(t("log.graph_memory_updater.m002", self=self.graph_id))
     
     def stop(self):
         """Stop the background worker thread and flush pending activity."""
@@ -303,10 +304,10 @@ class ZepGraphMemoryUpdater:
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=10)
         
-        logger.info(t("log.zep_graph_memory_updater.m003", self=self.graph_id, self_2=self._total_activities, self_3=self._total_sent, self_4=self._total_items_sent, self_5=self._failed_count, self_6=self._skipped_count))
+        logger.info(t("log.graph_memory_updater.m003", self=self.graph_id, self_2=self._total_activities, self_3=self._total_sent, self_4=self._total_items_sent, self_5=self._failed_count, self_6=self._skipped_count))
     
     def add_activity(self, activity: AgentActivity):
-        """Enqueue a single agent activity for delivery to Zep.
+        """Enqueue a single agent activity for delivery to the graph.
 
         Every meaningful action is queued, including:
 
@@ -334,7 +335,7 @@ class ZepGraphMemoryUpdater:
         
         self._activity_queue.put(activity)
         self._total_activities += 1
-        logger.debug(t("log.zep_graph_memory_updater.m004", activity=activity.agent_name, activity_2=activity.action_type))
+        logger.debug(t("log.graph_memory_updater.m004", activity=activity.agent_name, activity_2=activity.action_type))
     
     def add_activity_from_dict(self, data: Dict[str, Any], platform: str):
         """Build an ``AgentActivity`` from a parsed JSON record and enqueue it.
@@ -379,18 +380,18 @@ class ZepGraphMemoryUpdater:
                             self._platform_buffers[platform] = self._platform_buffers[platform][self.BATCH_SIZE:]
                             # Release the lock before issuing the network call.
                             self._send_batch_activities(batch, platform)
-                            # Throttle so we don't hammer the Zep API.
+                            # Throttle so we don't hammer the Graphiti API.
                             time.sleep(self.SEND_INTERVAL)
                     
                 except Empty:
                     pass
                     
             except Exception as e:
-                logger.error(t("log.zep_graph_memory_updater.m005", e=e))
+                logger.error(t("log.graph_memory_updater.m005", e=e))
                 time.sleep(1)
     
     def _send_batch_activities(self, activities: List[AgentActivity], platform: str):
-        """Send a batch of activities to the Zep graph as one combined episode.
+        """Send a batch of activities to the graph as one combined episode.
 
         Args:
             activities: Agent activity records to send.
@@ -415,16 +416,16 @@ class ZepGraphMemoryUpdater:
                 self._total_sent += 1
                 self._total_items_sent += len(activities)
                 display_name = self._get_platform_display_name(platform)
-                logger.info(t("log.zep_graph_memory_updater.m006", len=len(activities), display_name=display_name, self=self.graph_id))
-                logger.debug(t("log.zep_graph_memory_updater.m007", combined_text=combined_text[:200]))
+                logger.info(t("log.graph_memory_updater.m006", len=len(activities), display_name=display_name, self=self.graph_id))
+                logger.debug(t("log.graph_memory_updater.m007", combined_text=combined_text[:200]))
                 return
                 
             except Exception as e:
                 if attempt < self.MAX_RETRIES - 1:
-                    logger.warning(t("log.zep_graph_memory_updater.m008", attempt=attempt + 1, self=self.MAX_RETRIES, e=e))
+                    logger.warning(t("log.graph_memory_updater.m008", attempt=attempt + 1, self=self.MAX_RETRIES, e=e))
                     time.sleep(self.RETRY_DELAY * (attempt + 1))
                 else:
-                    logger.error(t("log.zep_graph_memory_updater.m009", self=self.MAX_RETRIES, e=e))
+                    logger.error(t("log.graph_memory_updater.m009", self=self.MAX_RETRIES, e=e))
                     self._failed_count += 1
     
     def _flush_remaining(self):
@@ -446,7 +447,7 @@ class ZepGraphMemoryUpdater:
             for platform, buffer in self._platform_buffers.items():
                 if buffer:
                     display_name = self._get_platform_display_name(platform)
-                    logger.info(t("log.zep_graph_memory_updater.m010", display_name=display_name, len=len(buffer)))
+                    logger.info(t("log.graph_memory_updater.m010", display_name=display_name, len=len(buffer)))
                     self._send_batch_activities(buffer, platform)
             for platform in self._platform_buffers:
                 self._platform_buffers[platform] = []
@@ -470,37 +471,37 @@ class ZepGraphMemoryUpdater:
         }
 
 
-class ZepGraphMemoryManager:
-    """Registry that owns one ``ZepGraphMemoryUpdater`` per active simulation."""
+class GraphMemoryManager:
+    """Registry that owns one ``GraphMemoryUpdater`` per active simulation."""
     
-    _updaters: Dict[str, ZepGraphMemoryUpdater] = {}
+    _updaters: Dict[str, GraphMemoryUpdater] = {}
     _lock = threading.Lock()
     
     @classmethod
-    def create_updater(cls, simulation_id: str, graph_id: str) -> ZepGraphMemoryUpdater:
+    def create_updater(cls, simulation_id: str, graph_id: str) -> GraphMemoryUpdater:
         """Create (and start) a graph-memory updater for a simulation.
 
         Args:
             simulation_id: Simulation ID.
-            graph_id: Zep graph ID.
+            graph_id: Knowledge graph ID.
 
         Returns:
-            The started ``ZepGraphMemoryUpdater`` instance.
+            The started ``GraphMemoryUpdater`` instance.
         """
         with cls._lock:
             # An updater already exists for this simulation — stop it first.
             if simulation_id in cls._updaters:
                 cls._updaters[simulation_id].stop()
             
-            updater = ZepGraphMemoryUpdater(graph_id)
+            updater = GraphMemoryUpdater(graph_id)
             updater.start()
             cls._updaters[simulation_id] = updater
             
-            logger.info(t("log.zep_graph_memory_updater.m011", simulation_id=simulation_id, graph_id=graph_id))
+            logger.info(t("log.graph_memory_updater.m011", simulation_id=simulation_id, graph_id=graph_id))
             return updater
     
     @classmethod
-    def get_updater(cls, simulation_id: str) -> Optional[ZepGraphMemoryUpdater]:
+    def get_updater(cls, simulation_id: str) -> Optional[GraphMemoryUpdater]:
         """Return the updater for a simulation, or ``None`` if absent."""
         return cls._updaters.get(simulation_id)
     
@@ -511,7 +512,7 @@ class ZepGraphMemoryManager:
             if simulation_id in cls._updaters:
                 cls._updaters[simulation_id].stop()
                 del cls._updaters[simulation_id]
-                logger.info(t("log.zep_graph_memory_updater.m012", simulation_id=simulation_id))
+                logger.info(t("log.graph_memory_updater.m012", simulation_id=simulation_id))
     
     # Idempotency guard so ``stop_all`` only runs once per process lifetime.
     _stop_all_done = False
@@ -529,9 +530,9 @@ class ZepGraphMemoryManager:
                     try:
                         updater.stop()
                     except Exception as e:
-                        logger.error(t("log.zep_graph_memory_updater.m013", simulation_id=simulation_id, e=e))
+                        logger.error(t("log.graph_memory_updater.m013", simulation_id=simulation_id, e=e))
                 cls._updaters.clear()
-            logger.info(t("log.zep_graph_memory_updater.m014"))
+            logger.info(t("log.graph_memory_updater.m014"))
     
     @classmethod
     def get_all_stats(cls) -> Dict[str, Dict[str, Any]]:

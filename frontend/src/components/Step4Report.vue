@@ -541,55 +541,56 @@ const getToolIcon = (toolName) => {
 // Backend-coupled markers used to parse the report-agent output. Centralised
 // here so that, when the backend prompt translation lands (issue #25 / spec
 // i18n-report-agent-prompts), updating the alternates is a single-file edit.
-// Until then these stay Chinese-only, matching what backend/app/services/
-// zep_tools.py emits today (line numbers in comments are the canonical
-// source). Per Requirement 5, parsers must keep working as the backend
-// transitions; a translated marker is added by appending an alternation
-// branch to the relevant regex.
+// Until then these stay Chinese-only, matching what
+// backend/app/services/graph_retrieval_tools.py emits today (section-header
+// context kept in inline comments; precise line numbers omitted because they
+// drift as the file evolves). Per Requirement 5, parsers must keep working as
+// the backend transitions; a translated marker is added by appending an
+// alternation branch to the relevant regex.
 // i18n-allow-block: backend-coupled markers; sync with i18n-report-agent-prompts
 const REPORT_MARKERS = Object.freeze({
-  // zep_tools.py:175 — f"分析问题: {self.query}"
+  // graph_retrieval_tools.py — f"分析问题: {self.query}"
   analysisQuery:    { regex: /分析问题:\s*(.+?)(?:\n|$)/ },
-  // zep_tools.py:176 — f"预测场景: {self.simulation_requirement}"
+  // graph_retrieval_tools.py — f"预测场景: {self.simulation_requirement}"
   predictionScene:  { regex: /预测场景:\s*(.+?)(?:\n|$)/ },
-  // zep_tools.py:178 — f"- 相关预测事实: {self.total_facts}条"
+  // graph_retrieval_tools.py — f"- 相关预测事实: {self.total_facts}条"
   factsCount:       { regex: /相关预测事实:\s*(\d+)/ },
-  // zep_tools.py:179 — f"- 涉及实体: {self.total_entities}个"
+  // graph_retrieval_tools.py — f"- 涉及实体: {self.total_entities}个"
   entitiesCount:    { regex: /涉及实体:\s*(\d+)/ },
-  // zep_tools.py:180 — f"- 关系链: {self.total_relationships}条"
+  // graph_retrieval_tools.py — f"- 关系链: {self.total_relationships}条"
   relationsCount:   { regex: /关系链:\s*(\d+)/ },
-  // zep_tools.py:185 — section header
+  // graph_retrieval_tools.py — section header
   subQueriesHeader: { regex: /### 分析的子问题\n([\s\S]*?)(?=\n###|$)/ },
-  // zep_tools.py:191 — section header
+  // graph_retrieval_tools.py — section header
   keyFactsHeader:   { regex: /### 【关键事实】[\s\S]*?\n([\s\S]*?)(?=\n###|$)/ },
-  // zep_tools.py:197 — section header
+  // graph_retrieval_tools.py — section header
   coreEntitiesHdr:  { regex: /### 【核心实体】\n([\s\S]*?)(?=\n###|$)/ },
-  // zep_tools.py:201 — f"  摘要: \"...\""
+  // graph_retrieval_tools.py — f"  摘要: \"...\""
   entitySummary:    { regex: /摘要:\s*"?(.+?)"?(?:\n|$)/ },
-  // zep_tools.py:203 — f"  相关事实: ..."
+  // graph_retrieval_tools.py — f"  相关事实: ..."
   relatedFactsCnt:  { regex: /相关事实:\s*(\d+)/ },
-  // zep_tools.py:207 — section header
+  // graph_retrieval_tools.py — section header
   relationChainHdr: { regex: /### 【关系链】\n([\s\S]*?)(?=\n###|$)/ },
   // PanoramaSearch — query line
   panoramaQuery:    { regex: /查询:\s*(.+?)(?:\n|$)/ },
   // PanoramaSearch — node and edge totals
   totalNodes:       { regex: /总节点数:\s*(\d+)/ },
   totalEdges:       { regex: /总边数:\s*(\d+)/ },
-  // zep_tools.py:258 — f"- 当前有效事实: {self.active_count}条"
+  // graph_retrieval_tools.py — f"- 当前有效事实: {self.active_count}条"
   activeFactsCnt:   { regex: /当前有效事实:\s*(\d+)/ },
-  // zep_tools.py:259 — f"- 历史/过期事实: {self.historical_count}条"
+  // graph_retrieval_tools.py — f"- 历史/过期事实: {self.historical_count}条"
   historicalCnt:    { regex: /历史\/过期事实:\s*(\d+)/ },
-  // zep_tools.py:264 — section header
+  // graph_retrieval_tools.py — section header
   activeFactsHdr:   { regex: /### 【当前有效事实】[\s\S]*?\n([\s\S]*?)(?=\n###|$)/ },
-  // zep_tools.py:270 — section header
+  // graph_retrieval_tools.py — section header
   historicalHdr:    { regex: /### 【历史\/过期事实】[\s\S]*?\n([\s\S]*?)(?=\n###|$)/ },
-  // zep_tools.py:276 — section header
+  // graph_retrieval_tools.py — section header
   involvedEntities: { regex: /### 【涉及实体】\n([\s\S]*?)(?=\n###|$)/ },
-  // zep_tools.py:379 — f"**采访主题:** {self.interview_topic}"
+  // graph_retrieval_tools.py — f"**采访主题:** {self.interview_topic}"
   interviewTopic:   { regex: /\*\*采访主题:\*\*\s*(.+?)(?:\n|$)/ },
-  // zep_tools.py:380 — f"**采访人数:** {n} / {m} 位模拟Agent"
+  // graph_retrieval_tools.py — f"**采访人数:** {n} / {m} 位模拟Agent"
   interviewCount:   { regex: /\*\*采访人数:\*\*\s*(\d+)\s*\/\s*(\d+)/ },
-  // zep_tools.py:381 — section header
+  // graph_retrieval_tools.py — section header
   selectionReasonHdr: { regex: /### 采访对象选择理由\n([\s\S]*?)(?=\n---\n|\n### 采访实录)/ },
   // selection-reason line formats (3 variants)
   selectionFormat1: { regex: /^\d+\.\s*\*\*([^*（(]+)(?:[（(]index\s*=?\s*\d+[)）])?\*\*[：:]\s*(.*)/ },
@@ -597,17 +598,17 @@ const REPORT_MARKERS = Object.freeze({
   selectionFormat3: { regex: /^-\s*\*\*([^*（(]+)(?:[（(]index\s*=?\s*\d+[)）])?\*\*[：:]\s*(.*)/ },
   // selection-reason terminator phrases (lines that end the per-person reason)
   selectionTerminator: { regex: /^未选|^综上|^最终选择/ },
-  // interview block delimiter (from zep_tools.py)
+  // interview block delimiter (from graph_retrieval_tools.py)
   interviewBlockSplit: { regex: /#### 采访 #\d+:/ },
   // bio line — `_简介: ..._\n`
   agentBio:         { regex: /_简介:\s*([\s\S]*?)_\n/ },
-  // platform answer markers — zep_tools.py:1426
+  // platform answer markers — graph_retrieval_tools.py
   twitterAnswer:    { regex: /【Twitter平台回答】\n?([\s\S]*?)(?=【Reddit平台回答】|$)/ },
   redditAnswer:     { regex: /【Reddit平台回答】\n?([\s\S]*?)$/ },
-  // zep_tools.py:311 — section header (key quotes)
+  // graph_retrieval_tools.py — section header (key quotes)
   keyQuotesHeader:  { regex: /\*\*A:\*\*\s*([\s\S]*?)(?=\*\*关键引言|$)/ },
   keyQuotesBlock:   { regex: /\*\*关键引言:\*\*\n([\s\S]*?)(?=\n---|\n####|$)/ },
-  // zep_tools.py:395 — section header
+  // graph_retrieval_tools.py — section header
   interviewSummary: { regex: /### 采访摘要与核心观点\n([\s\S]*?)$/ },
   // QuickSearch — search query line and result count
   searchQuery:      { regex: /搜索查询:\s*(.+?)(?:\n|$)/ },

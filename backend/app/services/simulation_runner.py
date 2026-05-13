@@ -22,7 +22,7 @@ from queue import Queue
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale, t
-from .zep_graph_memory_updater import ZepGraphMemoryManager
+from .graph_memory_updater import GraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
 logger = get_logger('mirofish.simulation_runner')
@@ -307,8 +307,8 @@ class SimulationRunner:
         simulation_id: str,
         platform: str = "parallel",  # twitter / reddit / parallel
         max_rounds: int = None,  # Optional cap on simulation rounds (truncates overly long runs).
-        enable_graph_memory_update: bool = False,  # Whether to push activity into the Zep graph.
-        graph_id: str = None  # Zep graph ID (required when graph-memory updates are enabled).
+        enable_graph_memory_update: bool = False,  # Whether to push activity into the knowledge graph.
+        graph_id: str = None  # Knowledge-graph ID (required when graph-memory updates are enabled).
     ) -> SimulationRunState:
         """
         Start the simulation.
@@ -317,8 +317,8 @@ class SimulationRunner:
             simulation_id: Simulation ID.
             platform: Platform to run (twitter/reddit/parallel).
             max_rounds: Optional cap on simulation rounds (truncates overly long runs).
-            enable_graph_memory_update: Whether to push agent activity to the Zep graph in real time.
-            graph_id: Zep graph ID (required when graph-memory updates are enabled).
+            enable_graph_memory_update: Whether to push agent activity to the knowledge graph in real time.
+            graph_id: Knowledge-graph ID (required when graph-memory updates are enabled).
 
         Returns:
             SimulationRunState
@@ -367,7 +367,7 @@ class SimulationRunner:
                 raise ValueError("启用图谱记忆更新时必须提供 graph_id")
             
             try:
-                ZepGraphMemoryManager.create_updater(simulation_id, graph_id)
+                GraphMemoryManager.create_updater(simulation_id, graph_id)
                 cls._graph_memory_enabled[simulation_id] = True
                 logger.info(t("log.simulation_runner.m003", simulation_id=simulation_id, graph_id=graph_id))
             except Exception as e:
@@ -540,7 +540,7 @@ class SimulationRunner:
             # Tear down the graph-memory updater, if we started one.
             if cls._graph_memory_enabled.get(simulation_id, False):
                 try:
-                    ZepGraphMemoryManager.stop_updater(simulation_id)
+                    GraphMemoryManager.stop_updater(simulation_id)
                     logger.info(t("log.simulation_runner.m009", simulation_id=simulation_id))
                 except Exception as e:
                     logger.error(t("log.simulation_runner.m010", e=e))
@@ -586,7 +586,7 @@ class SimulationRunner:
         graph_memory_enabled = cls._graph_memory_enabled.get(state.simulation_id, False)
         graph_updater = None
         if graph_memory_enabled:
-            graph_updater = ZepGraphMemoryManager.get_updater(state.simulation_id)
+            graph_updater = GraphMemoryManager.get_updater(state.simulation_id)
         
         try:
             with open(log_path, 'r', encoding='utf-8') as f:
@@ -657,7 +657,7 @@ class SimulationRunner:
                             if action.round_num and action.round_num > state.current_round:
                                 state.current_round = action.round_num
 
-                            # Forward the activity to the Zep graph when the updater is enabled.
+                            # Forward the activity to the knowledge graph when the updater is enabled.
                             if graph_updater:
                                 graph_updater.add_activity_from_dict(action_data, platform)
                             
@@ -787,7 +787,7 @@ class SimulationRunner:
         # Tear down the graph-memory updater, if any.
         if cls._graph_memory_enabled.get(simulation_id, False):
             try:
-                ZepGraphMemoryManager.stop_updater(simulation_id)
+                GraphMemoryManager.stop_updater(simulation_id)
                 logger.info(t("log.simulation_runner.m021", simulation_id=simulation_id))
             except Exception as e:
                 logger.error(t("log.simulation_runner.m022", e=e))
@@ -1176,7 +1176,7 @@ class SimulationRunner:
 
         # Stop graph-memory updaters first (stop_all logs internally).
         try:
-            ZepGraphMemoryManager.stop_all()
+            GraphMemoryManager.stop_all()
         except Exception as e:
             logger.error(t("log.simulation_runner.m026", e=e))
         cls._graph_memory_enabled.clear()

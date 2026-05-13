@@ -14,7 +14,7 @@ from enum import Enum
 
 from ..config import Config
 from ..utils.logger import get_logger
-from .zep_entity_reader import ZepEntityReader, FilteredEntities
+from .graph_entity_reader import GraphEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
 from ..utils.locale import t
@@ -116,7 +116,7 @@ class SimulationManager:
     """Simulation manager.
 
     Core responsibilities:
-    1. Read entities from the Zep graph and filter to the configured types.
+    1. Read entities from the knowledge graph and filter to the configured types.
     2. Generate OASIS agent profiles per entity.
     3. Use the LLM to generate simulation configuration parameters.
     4. Materialize the files the preset scripts expect.
@@ -201,7 +201,7 @@ class SimulationManager:
 
         Args:
             project_id: Owning project id.
-            graph_id: Source Zep graph id.
+            graph_id: Source knowledge-graph id.
             enable_twitter: When ``True``, the Twitter simulation runs.
             enable_reddit: When ``True``, the Reddit simulation runs.
 
@@ -268,9 +268,9 @@ class SimulationManager:
 
             # ========== Stage 1: read and filter entities ==========
             if progress_callback:
-                progress_callback("reading", 0, t('progress.connectingZepGraph'))
+                progress_callback("reading", 0, t('progress.connectingGraph'))
 
-            reader = ZepEntityReader()
+            reader = GraphEntityReader()
 
             if progress_callback:
                 progress_callback("reading", 30, t('progress.readingNodeData'))
@@ -309,7 +309,7 @@ class SimulationManager:
                     total=total_entities
                 )
 
-            # Pass the graph_id so the generator can use Zep retrieval for richer context.
+            # Pass the graph_id so the generator can use graph retrieval for richer context.
             generator = OasisProfileGenerator(graph_id=state.graph_id)
 
             def profile_progress(current, total, msg):
@@ -337,7 +337,7 @@ class SimulationManager:
                 entities=filtered.entities,
                 use_llm=use_llm_for_profiles,
                 progress_callback=profile_progress,
-                graph_id=state.graph_id,  # used for Zep retrieval enrichment
+                graph_id=state.graph_id,  # used for graph retrieval enrichment
                 parallel_count=parallel_profile_count,
                 realtime_output_path=realtime_output_path,
                 output_platform=realtime_platform

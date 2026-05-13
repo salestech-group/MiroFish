@@ -127,8 +127,7 @@ the affected blueprint, not the whole API.
 
 - `/project/list` accepts `?limit=<n>` (default 50). Match this
   pattern for new list endpoints.
-- Graph queries use `utils/zep_paging.py` for cursor-style paging
-  (legacy name; still the canonical helper).
+- Graph queries use `utils/graph_paging.py` for cursor-style paging.
 
 ## What Not to Do
 

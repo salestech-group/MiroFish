@@ -1,7 +1,7 @@
 """Simulation-related API routes.
 
-Step 2: Zep entity reading/filtering, OASIS simulation preparation and execution
-(end-to-end automated).
+Step 2: knowledge-graph entity reading/filtering, OASIS simulation preparation
+and execution (end-to-end automated).
 """
 
 import os
@@ -10,7 +10,7 @@ from flask import request, jsonify, send_file
 
 from . import simulation_bp
 from ..config import Config
-from ..services.zep_entity_reader import ZepEntityReader
+from ..services.graph_entity_reader import GraphEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
@@ -67,7 +67,7 @@ def get_graph_entities(graph_id: str):
         
         logger.info(t("log.simulation_api.m002", graph_id=graph_id, entity_types=entity_types, enrich=enrich))
         
-        reader = ZepEntityReader()
+        reader = GraphEntityReader()
         result = reader.filter_defined_entities(
             graph_id=graph_id,
             defined_entity_types=entity_types,
@@ -98,7 +98,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
                 "error": t("api.error.simulation.m004")
             }), 500
         
-        reader = ZepEntityReader()
+        reader = GraphEntityReader()
         entity = reader.get_entity_with_context(graph_id, entity_uuid)
         
         if not entity:
@@ -133,7 +133,7 @@ def get_entities_by_type(graph_id: str, entity_type: str):
         
         enrich = request.args.get('enrich', 'true').lower() == 'true'
         
-        reader = ZepEntityReader()
+        reader = GraphEntityReader()
         entities = reader.get_entities_by_type(
             graph_id=graph_id,
             entity_type=entity_type,
@@ -358,7 +358,7 @@ def prepare_simulation():
 
     Steps:
     1. Check whether preparation is already complete.
-    2. Read and filter entities from the Zep graph.
+    2. Read and filter entities from the knowledge graph.
     3. Generate an OASIS Agent profile per entity (with retry).
     4. LLM-generate the simulation configuration (with retry).
     5. Save the config files and preset scripts.
@@ -455,7 +455,7 @@ def prepare_simulation():
         # so the frontend can immediately display the expected agent total.
         try:
             logger.info(t("log.simulation_api.m027", state=state.graph_id))
-            reader = ZepEntityReader()
+            reader = GraphEntityReader()
             filtered_preview = reader.filter_defined_entities(
                 graph_id=state.graph_id,
                 defined_entity_types=entity_types_list,
@@ -1350,7 +1350,7 @@ def generate_profiles():
         use_llm = data.get('use_llm', True)
         platform = data.get('platform', 'reddit')
         
-        reader = ZepEntityReader()
+        reader = GraphEntityReader()
         filtered = reader.filter_defined_entities(
             graph_id=graph_id,
             defined_entity_types=entity_types,
@@ -1406,7 +1406,7 @@ def start_simulation():
             "simulation_id": "sim_xxxx",           // required
             "platform": "parallel",                 // optional: twitter / reddit / parallel (default)
             "max_rounds": 100,                      // optional: max simulation rounds (truncate long sims)
-            "enable_graph_memory_update": false,    // optional: stream agent activity into Zep memory
+            "enable_graph_memory_update": false,    // optional: stream agent activity into graph memory
             "force": false                          // optional: force restart (stops running sim, clears logs)
         }
 
@@ -1417,7 +1417,7 @@ def start_simulation():
         - Use this when you need to re-run a simulation from scratch.
 
     About `enable_graph_memory_update`:
-        - When enabled, all agent activity (posts, comments, likes, etc.) is pushed into the Zep graph
+        - When enabled, all agent activity (posts, comments, likes, etc.) is pushed into the knowledge graph
           in real time, so the graph "remembers" the simulation for later analysis or chat.
         - Requires the linked project to have a valid graph_id.
         - Uses batch updates to reduce API calls.

@@ -33,10 +33,6 @@ logic.
 **Pattern**: Long-running operations expose an async/background entrypoint
 that returns a `Task` and runs work off the request thread. Direct calls
 to Neo4j, OASIS subprocesses, or LLM streaming live here, not in `api/`.
-**Naming note**: Files prefixed `zep_*` are legacy from the Zep→Graphiti
-migration. Don't rename casually (imports across the project), and don't
-add new `zep_*` files.
-
 ### Backend State Models
 **Location**: `backend/app/models/`
 **Purpose**: In-memory, JSON-serializable state objects. `Project`
@@ -49,7 +45,7 @@ contract with the frontend — change their shape with care.
 **Purpose**: Cross-cutting helpers usable from any service —
 LLM client wrapper (`llm_client.py`), file parsing (`file_parser.py`),
 retry (`retry.py`), logging (`logger.py`), locale (`locale.py`),
-pagination helpers (`zep_paging.py`).
+pagination helpers (`graph_paging.py`).
 **Rule**: Utils never import from `services/` or `api/`.
 
 ### Backend Config
@@ -158,9 +154,5 @@ import { useStep } from './useStep'
 - **Configuration is centralized.** New tunables go in
   `backend/app/config.py` (and an `.env.example` line if env-driven),
   not as constants scattered through services.
-- **Legacy filenames stay.** `zep_*` files predate the Graphiti
-  migration; leave the names alone to avoid touching every importer,
-  but don't add new `zep_*` files.
-
 ---
 _Document patterns, not file trees. New files following patterns shouldn't require updates_

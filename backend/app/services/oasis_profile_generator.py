@@ -1,11 +1,11 @@
 """
 OASIS Agent Profile generator.
 
-Converts entities from the Zep graph into the Agent Profile format required by
+Converts entities from the knowledge graph into the Agent Profile format required by
 the OASIS simulation platform.
 
 Improvements:
-1. Call Zep retrieval to further enrich node information.
+1. Call graph retrieval to further enrich node information.
 2. Optimized prompts that produce highly detailed personas.
 3. Distinguishes individual entities from abstract group entities.
 """
@@ -23,7 +23,7 @@ from .graphiti_adapter import GraphitiAdapter
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, get_locale, set_locale, t
-from .zep_entity_reader import EntityNode, ZepEntityReader
+from .graph_entity_reader import EntityNode, GraphEntityReader
 
 logger = get_logger('mirofish.oasis_profile')
 
@@ -143,11 +143,11 @@ class OasisAgentProfile:
 class OasisProfileGenerator:
     """OASIS Profile generator.
 
-    Converts entities from the Zep graph into the Agent Profiles required by
-    the OASIS simulation.
+    Converts entities from the knowledge graph into the Agent Profiles required
+    by the OASIS simulation.
 
     Highlights:
-    1. Uses Zep graph retrieval to gather richer context.
+    1. Uses graph retrieval to gather richer context.
     2. Produces highly detailed personas (basic info, career history, traits,
        social-media behavior, etc.).
     3. Distinguishes individual entities from group/institution entities.
@@ -178,26 +178,25 @@ class OasisProfileGenerator:
     ]
     
     def __init__(
-        self, 
+        self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model_name: Optional[str] = None,
-        zep_api_key: Optional[str] = None,
         graph_id: Optional[str] = None
     ):
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model_name = model_name or Config.LLM_MODEL_NAME
-        
+
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
-        
+
         self.client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url
         )
-        
-        self.zep_client = GraphitiAdapter()
+
+        self.graph_client = GraphitiAdapter()
         self.graph_id = graph_id
     
     def generate_profile_from_entity(
@@ -206,10 +205,10 @@ class OasisProfileGenerator:
         user_id: int,
         use_llm: bool = True
     ) -> OasisAgentProfile:
-        """Generate an OASIS Agent Profile from a Zep entity.
+        """Generate an OASIS Agent Profile from a graph entity.
 
         Args:
-            entity: The Zep entity node.
+            entity: The graph entity node.
             user_id: The OASIS user id to assign.
             use_llm: Whether to use the LLM to generate a detailed persona.
 
@@ -269,12 +268,12 @@ class OasisProfileGenerator:
         suffix = random.randint(100, 999)
         return f"{username}_{suffix}"
     
-    def _search_zep_for_entity(self, entity: EntityNode) -> Dict[str, Any]:
-        """Use Zep hybrid graph search to gather rich context for an entity.
+    def _search_graph_for_entity(self, entity: EntityNode) -> Dict[str, Any]:
+        """Use hybrid graph search to gather rich context for an entity.
 
-        Zep does not expose a built-in hybrid search endpoint, so we search
-        edges and nodes separately and merge the results. The two searches
-        run in parallel for throughput.
+        The adapter does not expose a single hybrid-search endpoint, so we
+        search edges and nodes separately and merge the results. The two
+        searches run in parallel for throughput.
 
         Args:
             entity: The entity node to search around.
@@ -283,8 +282,8 @@ class OasisProfileGenerator:
             A dict with keys ``facts``, ``node_summaries`` and ``context``.
         """
         import concurrent.futures
-        
-        if not self.zep_client:
+
+        if not self.graph_client:
             return {"facts": [], "node_summaries": [], "context": ""}
         
         entity_name = entity.name
@@ -300,7 +299,7 @@ class OasisProfileGenerator:
             logger.debug(t("log.profile_generator.m001"))
             return results
         
-        comprehensive_query = t('progress.zepSearchQuery', name=entity_name)
+        comprehensive_query = t('progress.graphSearchQuery', name=entity_name)
         
         def search_edges():
             """Search edges (facts / relationships) with retries."""
@@ -310,7 +309,7 @@ class OasisProfileGenerator:
             
             for attempt in range(max_retries):
                 try:
-                    return self.zep_client.graph.search(
+                    return self.graph_client.graph.search(
                         query=comprehensive_query,
                         graph_id=self.graph_id,
                         limit=30,
@@ -334,7 +333,7 @@ class OasisProfileGenerator:
             
             for attempt in range(max_retries):
                 try:
-                    return self.zep_client.graph.search(
+                    return self.graph_client.graph.search(
                         query=comprehensive_query,
                         graph_id=self.graph_id,
                         limit=20,
@@ -400,7 +399,7 @@ class OasisProfileGenerator:
         Includes:
         1. The entity's own edge information (facts).
         2. Detailed information about related nodes.
-        3. Additional context retrieved from Zep hybrid search.
+        3. Additional context retrieved from hybrid graph search.
         """
         context_parts = []
 
@@ -454,17 +453,17 @@ class OasisProfileGenerator:
             if related_info:
                 context_parts.append("### Related entity information\n" + "\n".join(related_info))
         
-        # 4. Augment with Zep hybrid retrieval.
-        zep_results = self._search_zep_for_entity(entity)
+        # 4. Augment with hybrid graph retrieval.
+        graph_results = self._search_graph_for_entity(entity)
 
-        if zep_results.get("facts"):
+        if graph_results.get("facts"):
             # Deduplicate against already-known facts.
-            new_facts = [f for f in zep_results["facts"] if f not in existing_facts]
+            new_facts = [f for f in graph_results["facts"] if f not in existing_facts]
             if new_facts:
                 context_parts.append("### Facts retrieved from the graph\n" + "\n".join(f"- {f}" for f in new_facts[:15]))
 
-        if zep_results.get("node_summaries"):
-            context_parts.append("### Related nodes retrieved from the graph\n" + "\n".join(f"- {s}" for s in zep_results["node_summaries"][:10]))
+        if graph_results.get("node_summaries"):
+            context_parts.append("### Related nodes retrieved from the graph\n" + "\n".join(f"- {s}" for s in graph_results["node_summaries"][:10]))
         
         return "\n\n".join(context_parts)
     
@@ -827,7 +826,7 @@ Important:
             }
     
     def set_graph_id(self, graph_id: str):
-        """Set the graph id used for Zep retrieval."""
+        """Set the graph id used for hybrid retrieval."""
         self.graph_id = graph_id
     
     def generate_profiles_from_entities(
@@ -846,7 +845,7 @@ Important:
             entities: The entities to convert.
             use_llm: Whether to use the LLM to generate detailed personas.
             progress_callback: Progress callback ``(current, total, message)``.
-            graph_id: Graph id used for Zep retrieval to gather richer context.
+            graph_id: Graph id used for hybrid retrieval to gather richer context.
             parallel_count: Number of profiles to generate concurrently (default 5).
             realtime_output_path: If set, profiles are flushed to this path after
                 each successful generation.
@@ -858,7 +857,7 @@ Important:
         import concurrent.futures
         from threading import Lock
         
-        # Set the graph id used for Zep retrieval.
+        # Set the graph id used for hybrid retrieval.
         if graph_id:
             self.graph_id = graph_id
 

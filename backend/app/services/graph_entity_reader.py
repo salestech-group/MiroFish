@@ -1,7 +1,7 @@
-"""Zep entity reader and filter service.
+"""Graph entity reader and filter service.
 
-Reads nodes from a Zep graph and filters down to those that match a
-predefined ontology of entity types.
+Reads nodes from the knowledge graph and filters down to those that match
+a predefined ontology of entity types.
 """
 
 import time
@@ -12,10 +12,10 @@ from .graphiti_adapter import GraphitiAdapter
 
 from ..config import Config
 from ..utils.logger import get_logger
-from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
+from ..utils.graph_paging import fetch_all_nodes, fetch_all_edges
 from ..utils.locale import t
 
-logger = get_logger('mirofish.zep_entity_reader')
+logger = get_logger('mirofish.graph_entity_reader')
 
 # Generic return-type variable.
 T = TypeVar('T')
@@ -70,8 +70,8 @@ class FilteredEntities:
         }
 
 
-class ZepEntityReader:
-    """Read entities from a Zep graph and filter to ontology-defined types.
+class GraphEntityReader:
+    """Read entities from the knowledge graph and filter to ontology-defined types.
 
     Capabilities:
     1. Read all nodes from the graph.
@@ -89,7 +89,7 @@ class ZepEntityReader:
         max_retries: int = 3,
         initial_delay: float = 2.0
     ) -> T:
-        """Call a Zep API function with retry on failure.
+        """Call a graph API function with retry on failure.
 
         Args:
             func: A zero-argument callable performing the request.
@@ -110,12 +110,12 @@ class ZepEntityReader:
                 last_exception = e
                 if attempt < max_retries - 1:
                     logger.warning(
-                        t("log.zep_entity_reader.m001", operation_name=operation_name, attempt=attempt + 1, str=str(e)[:100], delay=delay)
+                        t("log.graph_entity_reader.m001", operation_name=operation_name, attempt=attempt + 1, str=str(e)[:100], delay=delay)
                     )
                     time.sleep(delay)
                     delay *= 2  # exponential backoff
                 else:
-                    logger.error(t("log.zep_entity_reader.m002", operation_name=operation_name, max_retries=max_retries, str=str(e)))
+                    logger.error(t("log.graph_entity_reader.m002", operation_name=operation_name, max_retries=max_retries, str=str(e)))
 
         raise last_exception
 
@@ -128,7 +128,7 @@ class ZepEntityReader:
         Returns:
             A list of node dicts.
         """
-        logger.info(t("log.zep_entity_reader.m003", graph_id=graph_id))
+        logger.info(t("log.graph_entity_reader.m003", graph_id=graph_id))
 
         nodes = fetch_all_nodes(self.client, graph_id)
 
@@ -142,7 +142,7 @@ class ZepEntityReader:
                 "attributes": node.attributes or {},
             })
 
-        logger.info(t("log.zep_entity_reader.m004", len=len(nodes_data)))
+        logger.info(t("log.graph_entity_reader.m004", len=len(nodes_data)))
         return nodes_data
 
     def get_all_edges(self, graph_id: str) -> List[Dict[str, Any]]:
@@ -154,7 +154,7 @@ class ZepEntityReader:
         Returns:
             A list of edge dicts.
         """
-        logger.info(t("log.zep_entity_reader.m005", graph_id=graph_id))
+        logger.info(t("log.graph_entity_reader.m005", graph_id=graph_id))
 
         edges = fetch_all_edges(self.client, graph_id)
 
@@ -169,7 +169,7 @@ class ZepEntityReader:
                 "attributes": edge.attributes or {},
             })
 
-        logger.info(t("log.zep_entity_reader.m006", len=len(edges_data)))
+        logger.info(t("log.graph_entity_reader.m006", len=len(edges_data)))
         return edges_data
 
     def get_node_edges(self, node_uuid: str) -> List[Dict[str, Any]]:
@@ -201,7 +201,7 @@ class ZepEntityReader:
 
             return edges_data
         except Exception as e:
-            logger.warning(t("log.zep_entity_reader.m007", node_uuid=node_uuid, str=str(e)))
+            logger.warning(t("log.graph_entity_reader.m007", node_uuid=node_uuid, str=str(e)))
             return []
 
     def filter_defined_entities(
@@ -224,7 +224,7 @@ class ZepEntityReader:
         Returns:
             A ``FilteredEntities`` summary.
         """
-        logger.info(t("log.zep_entity_reader.m008", graph_id=graph_id))
+        logger.info(t("log.graph_entity_reader.m008", graph_id=graph_id))
 
         # Look up ontology from project to classify entities
         ontology = None
@@ -334,7 +334,7 @@ class ZepEntityReader:
 
             filtered_entities.append(entity)
 
-        logger.info(t("log.zep_entity_reader.m009", total_count=total_count, len=len(filtered_entities), entity_types_found=entity_types_found))
+        logger.info(t("log.graph_entity_reader.m009", total_count=total_count, len=len(filtered_entities), entity_types_found=entity_types_found))
 
         return FilteredEntities(
             entities=filtered_entities,
@@ -419,7 +419,7 @@ class ZepEntityReader:
             )
 
         except Exception as e:
-            logger.error(t("log.zep_entity_reader.m010", entity_uuid=entity_uuid, str=str(e)))
+            logger.error(t("log.graph_entity_reader.m010", entity_uuid=entity_uuid, str=str(e)))
             return None
 
     def get_entities_by_type(

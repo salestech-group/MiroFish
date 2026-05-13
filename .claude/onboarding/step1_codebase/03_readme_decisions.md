@@ -12,13 +12,13 @@ the recent `feat/graphiti-neo4j-migration` merge (commit `6264828`) and
 needed to be resolved as part of Step 1.
 
 `README-EN.md` and `README-ZH.md` did **not** have markers but the ZH
-file still referenced Zep Cloud (out of date).
+file still referenced the previous knowledge-graph backend (out of date).
 
 ## Decisions
 
 | Question | Decision |
 |----------|----------|
-| Q1 — Resolve conflicts? | **Take Neo4j-branch content** (Neo4j prerequisite + Neo4j env vars). Zep references removed. |
+| Q1 — Resolve conflicts? | **Take Neo4j-branch content** (Neo4j prerequisite + Neo4j env vars). Stale references removed. |
 | Q2 — Prerequisites refinement? | **Out of scope for now.** Kept Neo4j install instructions as-is, will be revisited separately. |
 | Q3 — Add `LLM_BOOST_*` to README env vars? | **Yes.** Added as an optional block with a note to omit entirely if not used (matches `.env.example`). |
 | Q4 — Installation flow? | **Always assume Docker.** Reordered: Docker is now Option 1 (Recommended); Source is Option 2. |
@@ -39,13 +39,13 @@ file still referenced Zep Cloud (out of date).
 - Added `LLM_BOOST_*` optional block.
 
 ### `README-ZH.md` (Chinese)
-- Removed Zep Cloud env-var section.
+- Removed the stale knowledge-graph env-var section.
 - Added Neo4j prerequisite row + install instructions (translated).
 - Added `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` /
   `EMBEDDING_MODEL` env-var block (translated).
 - Reordered Docker-first / Source-second to match `README.md`.
 - Added `LLM_BOOST_*` optional block (translated).
-- Added the migration note (Zep → Graphiti + Neo4j) in Chinese.
+- Added the Graphiti + Neo4j note in Chinese.
 
 ## Verification
 - `grep` for `<<<<<<<` / `>>>>>>>` / `=======` across all three READMEs
@@ -60,7 +60,7 @@ Outputs:
 - `.claude/onboarding/step1_codebase/03_readme_decisions.md`
 
 Updated files:
-- `CLAUDE.md` (Neo4j+Graphiti primary, Zep deprecated, full env vars,
+- `CLAUDE.md` (Neo4j+Graphiti primary, full env vars,
   must-respect rules, project-internal coding conventions).
 - `README.md` / `README-EN.md` / `README-ZH.md` (Docker-first flow,
   Neo4j env vars, optional LLM_BOOST, language-switcher fixed).

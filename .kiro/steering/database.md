@@ -14,11 +14,10 @@ patterns.
   module that imports `graphiti_core` directly. Every other module talks
   to the graph through this adapter.
 
-The adapter exposes a Zep-Cloud-shaped namespace
-(`client.graph.add_episode(...)`, `client.graph.search(...)`, etc.) so
-legacy `zep_*` services kept their existing call sites after the
-migration. New code should use the same surface — do not introduce a
-parallel API.
+The adapter exposes a `client.graph.*` namespace
+(`client.graph.add_episode(...)`, `client.graph.search(...)`, etc.) and
+is the canonical entry point for graph access. New code should use the
+same surface — do not introduce a parallel API.
 
 ## Core Rule: `group_id` Isolation
 
@@ -97,8 +96,7 @@ What does **not** belong in the graph:
 - If a feature genuinely requires raw Cypher, add it as a method on the
   adapter, scoped by `group_id`, with a comment explaining why
   Graphiti's API is insufficient.
-- Pagination over Graphiti results uses `utils/zep_paging.py` (legacy
-  name, still applicable).
+- Pagination over Graphiti results uses `utils/graph_paging.py`.
 
 ## Startup Recovery
 
