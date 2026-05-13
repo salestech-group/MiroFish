@@ -63,6 +63,12 @@ Copy `.env.example` to `.env`:
 LLM_API_KEY              # Required
 LLM_BASE_URL             # Default: https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_MODEL_NAME           # Default: qwen-plus
+LLM_SMALL_MODEL_NAME     # Default: value of LLM_MODEL_NAME
+                         # Used by Graphiti for simpler extraction prompts
+                         # (ModelSize.small). Must exist on the same endpoint
+                         # as LLM_MODEL_NAME — Graphiti otherwise falls back
+                         # to its hard-coded `gpt-4.1-nano`, which 404s on
+                         # non-OpenAI backends (Qwen, GLM, Ollama, ...).
 
 # Neo4j + Graphiti (knowledge graph)
 NEO4J_URI                # Default: bolt://localhost:7687
